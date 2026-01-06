@@ -1,0 +1,232 @@
+import { MAINLINE_ITEMS } from '../data/constants.js';
+
+export const getAllNormalItems = (pools, currentStageConfig) => {
+    // 修正：限制池子类型（allowedPoolCount）和池内物品数量（poolSize）
+    const allowedPools = pools.slice(0, currentStageConfig.allowedPoolCount);
+
+    return allowedPools.flatMap(pool =>
+        pool.items.slice(0, currentStageConfig.poolSize).map(item => ({ ...item, poolId: pool.id, poolName: pool.name }))
+    );
+};
+
+export const getRandomAffix = (affixes) => {
+    const totalWeight = affixes.reduce((sum, a) => sum + (a.weight || 0), 0);
+    let r = Math.random() * totalWeight;
+    for (const affix of affixes) {
+        r -= affix.weight || 0;
+        if (r <= 0) {
+            return affix;
+        }
+    }
+    return affixes[0];
+};
+
+export const getRandomItems = (array, count) => {
+    const shuffled = [...array].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+};
+
+export const rollRequirementRarity = (config, currentStageConfig) => {
+    const weights = currentStageConfig.rarityWeights;
+    const r = Math.random();
+
+    // 累积概率计算
+    let accumulated = 0;
+
+    // 强制按照 weights 权重 Roll，如果阶段没有配置该稀有度权重，则不会 Roll 出来
+    if (weights.common > 0) {
+        accumulated += weights.common;
+        if (r <= accumulated) return config.rarity.find(r => r.id === 'common');
+    }
+    if (weights.uncommon > 0) {
+        accumulated += weights.uncommon;
+        if (r <= accumulated) return config.rarity.find(r => r.id === 'uncommon');
+    }
+    if (weights.rare > 0) {
+        accumulated += weights.rare;
+        if (r <= accumulated) return config.rarity.find(r => r.id === 'rare');
+    }
+    if (weights.epic > 0) {
+        accumulated += weights.epic;
+        if (r <= accumulated) return config.rarity.find(r => r.id === 'epic');
+    }
+
+    // Fallback to common
+    return config.rarity.find(r => r.id === 'common');
+};
+
+export const generateOrder = (allNormalItems, config, hasSkill = () => false, currentStageConfig) => {
+    const { orderCountRange } = currentStageConfig;
+    const rand = Math.random();
+    let count = orderCountRange[0];
+
+    // 简单的加权计算数量
+    if (orderCountRange[1] > orderCountRange[0]) {
+        if (currentStageConfig.id === 1) { // Stage 2
+            count = rand < 0.5 ? 2 : 3;
+        } else if (currentStageConfig.id === 2) { // Stage 3
+            count = rand < 0.3 ? 2 : 3;
+        } else if (currentStageConfig.id === 3) { // Stage 4
+            count = rand < 0.8 ? 3 : 4;
+        } else if (currentStageConfig.id === 4) { // Stage 5
+            count = rand < 0.6 ? 3 : 4;
+        }
+    }
+
+    // 技能【偷工减料】
+    if (hasSkill('cut_corners') && Math.random() < 0.20 && count > 1) {
+        count -= 1;
+    }
+
+    const rawRequirements = getRandomItems(allNormalItems, count);
+
+    const requirements = rawRequirements.map(item => ({
+        ...item,
+        requiredRarity: rollRequirementRarity(config, currentStageConfig)
+    }));
+
+    const totalReqBonus = requirements.reduce((sum, req) => sum + req.requiredRarity.bonus, 0);
+
+    // 先确定奖励类型，再根据数量分配对应的基础值
+    const rewardType = Math.random() < 0.5 ? 'gold' : 'ticket';
+    let rawBaseReward = 0;
+
+    if (count <= 2) {
+        rawBaseReward = rewardType === 'gold' ? 5 : 10;
+    } else if (count === 3) {
+        rawBaseReward = rewardType === 'gold' ? 10 : 20;
+    } else {
+        rawBaseReward = rewardType === 'gold' ? 15 : 30;
+    }
+
+    const baseReward = Math.ceil(rawBaseReward * (1 + totalReqBonus));
+
+    return {
+        id: Math.random().toString(36).substr(2, 9),
+        requirements,
+        baseReward,
+        rewardType,
+        remainingRefreshes: 2,
+        isMainline: false
+    };
+};
+
+export const generateMainlineOrder = (level, config, currentStageConfig) => {
+    if (level >= MAINLINE_ITEMS.length) return null;
+
+    const targetMainlineItem = MAINLINE_ITEMS[level];
+    const targetPool = config.pools.find(p => p.id === targetMainlineItem.poolId);
+
+    // 修正：确保主线需求的物品存在于被截断的奖池中，且池子类型也是已解锁的
+    const availableItems = targetPool.items.slice(0, currentStageConfig.poolSize);
+    const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+
+    // 根据阶段设置主线需求的稀有度
+    const mainlineFillerRarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    const targetRarityId = mainlineFillerRarities[level] || 'common';
+    const fillerRarity = config.rarity.find(r => r.id === targetRarityId);
+    const mythicRarity = config.rarity.find(r => r.id === 'mythic');
+
+    const req1 = {
+        ...targetMainlineItem,
+        requiredRarity: mythicRarity,
+        isMainlineItem: true
+    };
+
+    const req2 = {
+        ...randomItem,
+        poolId: targetPool.id,
+        poolName: targetPool.name,
+        requiredRarity: fillerRarity
+    };
+
+    return {
+        id: `mainline_order_${level}`,
+        requirements: [req1, req2],
+        baseReward: 0,
+        rewardType: 'none',
+        remainingRefreshes: 0,
+        isMainline: true,
+        level: level + 1,
+        name: `主线进度 ${level + 1}/5`
+    };
+};
+
+export const rollRarity = (config, affixKey = null, currentGold = 0, hasSkill = () => false, skillState = {}, currentStageConfig) => {
+    const { rarity: rarityConfig } = config;
+    const weights = currentStageConfig.rarityWeights;
+
+    // 词缀处理优先于技能保底
+    if (affixKey === 'hardened' || affixKey === 'purified') {
+        if (weights.legendary > 0) {
+            const r = Math.random();
+            if (r < 0.67) return rarityConfig.find(r => r.id === 'rare');
+            if (r < 0.97) return rarityConfig.find(r => r.id === 'epic');
+            return rarityConfig.find(r => r.id === 'legendary');
+        } else if (weights.epic > 0) {
+            const r = Math.random();
+            return r < 0.7 ? rarityConfig.find(r => r.id === 'rare') : rarityConfig.find(r => r.id === 'epic');
+        } else if (weights.rare > 0) {
+            return rarityConfig.find(r => r.id === 'rare');
+        }
+        return rarityConfig.find(r => r.id === 'uncommon'); // Fallback
+    }
+
+    if (affixKey === 'volatile') {
+        if (weights.legendary > 0) {
+            const r = Math.random();
+            if (r < 0.92) return rarityConfig.find(r => r.id === 'common');
+            return rarityConfig.find(r => r.id === 'legendary');
+        }
+        return rarityConfig.find(r => r.id === 'common');
+    }
+
+    if (affixKey === 'fragmented') {
+        return rarityConfig.find(r => r.id === 'common');
+    }
+
+    // 检查技能保底
+    if (skillState.nextDrawGuaranteedRare) {
+        const allowedRarities = rarityConfig.filter(r => weights[r.id] > 0);
+        const highRarities = allowedRarities.filter(r => ['rare', 'epic', 'legendary'].includes(r.id));
+
+        if (highRarities.length > 0) {
+            return highRarities[Math.floor(Math.random() * highRarities.length)];
+        } else {
+            return allowedRarities[allowedRarities.length - 1];
+        }
+    }
+
+    const r = Math.random();
+    let accumulated = 0;
+
+    let legendaryProbMultiplier = 1;
+    if (hasSkill('lucky_7') && (currentGold % 10 === 7)) {
+        legendaryProbMultiplier = 2;
+    }
+
+    // 使用 Stage Config 的权重进行 Roll
+    const orderedRarityIds = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+    for (const rid of orderedRarityIds) {
+        if (weights[rid] > 0) {
+            let prob = weights[rid];
+            if (rid === 'legendary') prob *= legendaryProbMultiplier; // 虽然权重表里是 0，但如果未来配置开放了
+            accumulated += prob;
+            if (r <= accumulated) {
+                return rarityConfig.find(item => item.id === rid);
+            }
+        }
+    }
+
+    return rarityConfig[0];
+};
+
+export const getNextRarity = (currentRarityId, config) => {
+    const { rarity: rarityConfig } = config;
+    const currentIndex = rarityConfig.findIndex(r => r.id === currentRarityId);
+    if (currentIndex !== -1 && currentIndex < rarityConfig.length - 1) {
+        return rarityConfig[currentIndex + 1];
+    }
+    return null;
+};

@@ -1,0 +1,2929 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { RefreshCw, Package, Trophy, RotateCcw, AlertCircle, X, Check, Star, Hand, ArrowLeftRight, ChevronsUp, Sparkles, Layers, Send, Coins, Ticket, Trash2, Ban, Gift, Target, Shuffle, Repeat, Settings, Download, Upload, Save, FileJson, Power, Info, MousePointerClick, Crown, ListOrdered, Flag, FastForward, Zap, ShieldCheck, Clover, TrendingUp, ShoppingBag, Clock, Briefcase, Gem, Scale, Hammer, ArrowRight, Eye, Lock, ZapOff } from 'lucide-react';
+
+// 手动定义别名
+const ResetIcon = RotateCcw;
+
+// --- 阶段配置定义 ---
+// id: 0 -> Stage 1 (纯净时代)
+// id: 1 -> Stage 2 (初识价值) - 此时解锁合成
+// id: 2 -> Stage 3 (风险引入)
+// id: 3 -> Stage 4 (策略完全体) - 此时解锁刷新
+const INITIAL_STAGE_CONFIG = [
+  {
+    id: 0,
+    name: '纯净时代',
+    desc: 'The Fruit Age',
+    inventorySize: 6,
+    orderSlots: 2,
+    poolSize: 3,
+    allowedPoolCount: 3, 
+    fixedPrice: 1, 
+    orderCountRange: [2, 2], 
+    rarityWeights: { common: 1.0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+    mechanics: { refresh: false, affixes: false, synthesis: false, variablePrice: false },
+    unlocks: ["游戏开始！", "解锁池子：水果、药物、文具"]
+  },
+  {
+    id: 1,
+    name: '初识价值',
+    desc: 'The Medicine Age',
+    inventorySize: 7,
+    orderSlots: 3,
+    poolSize: 4,
+    allowedPoolCount: 4, 
+    fixedPrice: 1,
+    orderCountRange: [2, 3], 
+    rarityWeights: { common: 0.5, uncommon: 0.5, rare: 0, epic: 0, legendary: 0 },
+    // 变更确认：解锁合成，无刷新
+    mechanics: { refresh: false, affixes: false, synthesis: true, variablePrice: false },
+    unlocks: ["解锁新池子：厨具", "新机制：物品合成 (限优秀品质)", "物品品质：【优秀】(绿色) 开放掉落", "背包栏位 +1", "订单栏位 +1"]
+  },
+  {
+    id: 2,
+    name: '风险引入',
+    desc: 'The Stationery Age',
+    inventorySize: 8,
+    orderSlots: 3,
+    poolSize: 5,
+    allowedPoolCount: 5, 
+    fixedPrice: null, 
+    orderCountRange: [2, 3], 
+    rarityWeights: { common: 0.5, uncommon: 0.3, rare: 0.2, epic: 0, legendary: 0 },
+    // 变更确认：无刷新，合成上限至Rare
+    mechanics: { refresh: false, affixes: true, synthesis: true, variablePrice: true },
+    unlocks: ["解锁新池子：电器 (全解锁)", "新机制：奖池词缀", "新机制：价格波动", "物品品质：【稀有】(蓝色) 开放掉落", "合成上限提升至蓝色", "背包栏位 +1", "技能池新增：精打细算、贵宾折扣"]
+  },
+  {
+    id: 3,
+    name: '策略完全体',
+    desc: 'The Kitchenware Age',
+    inventorySize: 9,
+    orderSlots: 4,
+    poolSize: 5,
+    allowedPoolCount: 5,
+    fixedPrice: null,
+    orderCountRange: [3, 4], 
+    rarityWeights: { common: 0.4, uncommon: 0.3, rare: 0.2, epic: 0.1, legendary: 0 },
+    // 变更确认：解锁刷新
+    mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
+    unlocks: ["新机制：订单刷新", "物品品质：【史诗】(紫色) 开放掉落", "背包栏位 +1", "订单栏位 +1", "技能池新增：困难订单专家、刷新类技能"]
+  },
+  {
+    id: 4,
+    name: '巅峰挑战',
+    desc: 'The Electronics Age',
+    inventorySize: 10,
+    orderSlots: 4,
+    poolSize: 5,
+    allowedPoolCount: 5,
+    fixedPrice: null,
+    orderCountRange: [3, 4], 
+    rarityWeights: { common: 0.35, uncommon: 0.3, rare: 0.2, epic: 0.15, legendary: 0.05 }, 
+    mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
+    unlocks: ["终极挑战开始", "更高难度的订单需求", "背包栏位 +1"]
+  }
+];
+
+// --- 技能定义 ---
+const SKILL_DEFINITIONS = [
+  { id: 'poverty_relief', name: '贫困救济', desc: '持有金币 < 5 时，完成订单的金币奖励额外 +10。', Icon: Gift, type: 'gold', color: 'text-yellow-600 bg-yellow-100' }, 
+  { id: 'lucky_7', name: '幸运 7', desc: '当前金币数量的尾数为 7 时，抽取传说物品的概率翻倍。', Icon: Star, type: 'luck', color: 'text-green-600 bg-green-100' }, 
+  { id: 'calculated', name: '精打细算', desc: '当前金币 < 10 时，普通抽奖的金币消耗 -2（最低为1）。', Icon: Coins, type: 'gold', color: 'text-blue-600 bg-blue-100' }, 
+  { id: 'alchemy', name: '炼金术', desc: '回收“稀有”及以上品质物品时，15% 概率获得 5 张奖券。', Icon: Sparkles, type: 'recycle', color: 'text-purple-600 bg-purple-100' }, 
+  { id: 'vip_discount', name: '贵宾折扣', desc: '“精准”和“有的放矢”词缀的奖池金币消耗减少 1。', Icon: Ticket, type: 'draw', color: 'text-orange-600 bg-orange-100' },
+  { id: 'negotiator', name: '谈判专家', desc: '抽到“史诗”或以上品质物品时，所有订单获得 1 次刷新次数。', Icon: ArrowLeftRight, type: 'utility', color: 'text-slate-600 bg-slate-100' }, 
+  { id: 'consolation_prize', name: '安慰奖', desc: '连续抽到 5 个“普通”品质物品后，下次抽奖获得的物品必定是稀有以上品质。', Icon: Check, type: 'luck', color: 'text-teal-600 bg-teal-100' }, 
+  { id: 'cut_corners', name: '偷工减料', desc: '刷新出新订单时，20% 概率使订单需求物品数量 -1（最低为1）。', Icon: Zap, type: 'refresh', color: 'text-red-600 bg-red-100' }, 
+  { id: 'time_freeze', name: '时间冻结', desc: '刷新单个订单时，20% 概率不消耗该订单的剩余刷新次数。', Icon: Clock, type: 'refresh', color: 'text-cyan-600 bg-cyan-100' },
+  { id: 'ocd', name: '强迫症', desc: '提交的订单若所有物品属于同一种类，金币/奖券奖励翻倍。', Icon: ListOrdered, type: 'order', color: 'text-indigo-600 bg-indigo-100' },
+  { id: 'auto_restock', name: '自动补货', desc: '完成任意订单后，下次抽奖获得的物品会多获得 1 个。', Icon: Package, type: 'draw', color: 'text-lime-600 bg-lime-100' }, 
+  { id: 'turn_fortune', name: '时来运转', desc: '完成任意订单后，下次抽奖获得的物品必定是稀有以上品质。', Icon: ChevronsUp, type: 'luck', color: 'text-rose-600 bg-rose-100' }, 
+  { id: 'big_order_expert', name: '大订单专家', desc: '完成需求物品数为 4 个的订单时，额外获得 10 张奖券。', Icon: Package, type: 'order', color: 'text-amber-600 bg-amber-100' },
+  { id: 'hard_order_expert', name: '困难订单专家', desc: '完成需要史诗以上品质物品的订单时，额外获得 15 张奖券。', Icon: Trophy, type: 'order', color: 'text-fuchsia-600 bg-fuchsia-100' },
+];
+
+// --- 初始数据定义 ---
+
+const INITIAL_AFFIXES_CONFIG = [
+  { id: 'trade_in', name: '以旧换新的', desc: '用背包内的 1 个物品随机置换 1 个同品质的物品。', type: 'interaction', weight: 10, cost: 1 },
+  { id: 'hardened', name: '硬化的', desc: '稀有度更高，但物品带有【绝育】效果，无法合成。', type: 'passive', weight: 10, cost: 2 },
+  { id: 'purified', name: '提纯的', desc: '保底产出稀有、史诗或传说物品。', type: 'passive', weight: 10, cost: 3 },
+  { id: 'volatile', name: '波动的', desc: '有更高的概率出现传说物品，但只会产出普通和传说物品', type: 'passive', weight: 10, cost: 1 },
+  { id: 'fragmented', name: '稀碎的', desc: '一次抽取获得 3 个物品，但必定为普通品质。', type: 'passive', weight: 10, cost: 1 },
+  { id: 'precise', name: '精准的', desc: '从 2 个不同的候选物品中任选其一。', type: 'interaction', weight: 10, cost: 2 },
+  { id: 'targeted', name: '有的放矢的', desc: '指定一个想要的物品类型。', type: 'interaction', weight: 10, cost: 4 },
+];
+
+const INITIAL_RARITY_CONFIG = [
+  { id: 'common', name: '普通', color: 'border-slate-300 bg-slate-50 text-slate-600', dotColor: 'bg-slate-400', bonus: 0, prob: 0.40, shadow: '', starColor: 'text-slate-400', recycleValue: 0 },
+  { id: 'uncommon', name: '优秀', color: 'border-green-400 bg-green-50 text-green-700', dotColor: 'bg-green-500', bonus: 0.1, prob: 0.30, shadow: 'shadow-green-200', starColor: 'text-green-500', recycleValue: 0 },
+  { id: 'rare', name: '稀有', color: 'border-blue-400 bg-blue-50 text-blue-700', dotColor: 'bg-blue-500', bonus: 0.2, prob: 0.19, shadow: 'shadow-blue-200', starColor: 'text-blue-500', recycleValue: 1 },
+  { id: 'epic', name: '史诗', color: 'border-purple-400 bg-purple-50 text-purple-700', dotColor: 'bg-purple-500', bonus: 0.4, prob: 0.10, shadow: 'shadow-purple-200', starColor: 'text-purple-500', recycleValue: 2 },
+  { id: 'legendary', name: '传说', color: 'border-orange-400 bg-orange-50 text-orange-700', dotColor: 'bg-orange-500', bonus: 1.0, prob: 0.01, shadow: 'shadow-orange-200', starColor: 'text-orange-500', recycleValue: 4 }, 
+  { id: 'mythic', name: '神话', color: 'border-rose-500 bg-rose-50 text-rose-700', dotColor: 'bg-rose-500', bonus: 3.0, prob: 0, shadow: 'shadow-rose-200', starColor: 'text-rose-600', recycleValue: 10 },
+];
+
+const INITIAL_POOLS_DATA = [
+  {
+    id: 'fruit', name: '水果', type: 'normal', weight: 4, currency: 'gold',
+    color: 'bg-green-100 text-green-800 border-green-200', icon: '🍎',
+    items: [{ name: '西瓜', icon: '🍉' }, { name: '柠檬', icon: '🍋' }, { name: '芒果', icon: '🥭' }, { name: '苹果', icon: '🍎' }, { name: '橙子', icon: '🍊' }]
+  },
+  {
+    id: 'medicine', name: '药物', type: 'normal', weight: 4, currency: 'gold',
+    color: 'bg-red-100 text-red-800 border-red-200', icon: '💊',
+    items: [{ name: '冲剂', icon: '🍵' }, { name: '滴眼液', icon: '💧' }, { name: '注射器', icon: '💉' }, { name: '胶囊', icon: '💊' }, { name: '绷带', icon: '🤕' }]
+  },
+  {
+    id: 'stationery', name: '文具', type: 'normal', weight: 4, currency: 'gold',
+    color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: '✏️',
+    items: [{ name: '铅笔', icon: '✏️' }, { name: '橡皮', icon: '🧼' }, { name: '订书机', icon: '📎' }, { name: '笔记本', icon: '📒' }, { name: '尺子', icon: '📏' }]
+  },
+  {
+    id: 'kitchenware', name: '厨具', type: 'normal', weight: 4, currency: 'gold',
+    color: 'bg-orange-100 text-orange-800 border-orange-200', icon: '🍳',
+    items: [{ name: '平底锅', icon: '🍳' }, { name: '菜刀', icon: '🔪' }, { name: '砧板', icon: '🪵' }, { name: '汤勺', icon: '🥄' }, { name: '叉子', icon: '🍴' }]
+  },
+  {
+    id: 'electronics', name: '电器', type: 'normal', weight: 4, currency: 'gold',
+    color: 'bg-blue-100 text-blue-800 border-blue-200', icon: '⚡️',
+    items: [{ name: '手机', icon: '📱' }, { name: '耳机', icon: '🎧' }, { name: '空调', icon: '❄️' }, { name: '电脑', icon: '💻' }, { name: '电视', icon: '📺' }]
+  }
+];
+
+const MAINLINE_ITEMS = [
+  { id: 'm1', name: '仙果', icon: '🍑', poolId: 'fruit', desc: '主线1道具' },
+  { id: 'm2', name: '灵丹', icon: '🏺', poolId: 'medicine', desc: '主线2道具' },
+  { id: 'm3', name: '神笔', icon: '🖌️', poolId: 'stationery', desc: '主线3道具' },
+  { id: 'm4', name: '金铲铲', icon: '🔱', poolId: 'kitchenware', desc: '主线4道具' },
+  { id: 'm5', name: '特斯拉', icon: '🚘', poolId: 'electronics', desc: '主线5道具' },
+];
+
+const INITIAL_GAME_CONFIG = {
+  affixes: INITIAL_AFFIXES_CONFIG,
+  rarity: INITIAL_RARITY_CONFIG,
+  pools: INITIAL_POOLS_DATA,
+  stages: INITIAL_STAGE_CONFIG, // 新增：将阶段配置纳入总配置
+  enabledSkillIds: SKILL_DEFINITIONS.map(s => s.id), 
+  global: {
+    refreshCost: 5,
+    initialGold: 30,
+    initialTickets: 0,
+    mainlineChance: 0.5,
+    mainlineDropRate: 0.3,
+    mainlineFillerLegendaryRate: 0.1,
+  }
+};
+
+// --- 纯逻辑函数 ---
+
+const getAllNormalItems = (pools, currentStageConfig) => {
+  // 修正：限制池子类型（allowedPoolCount）和池内物品数量（poolSize）
+  const allowedPools = pools.slice(0, currentStageConfig.allowedPoolCount);
+  
+  return allowedPools.flatMap(pool => 
+    pool.items.slice(0, currentStageConfig.poolSize).map(item => ({ ...item, poolId: pool.id, poolName: pool.name }))
+  );
+};
+
+const getRandomAffix = (affixes) => {
+  const totalWeight = affixes.reduce((sum, a) => sum + (a.weight || 0), 0);
+  let r = Math.random() * totalWeight;
+  for (const affix of affixes) {
+    r -= affix.weight || 0;
+    if (r <= 0) {
+      return affix;
+    }
+  }
+  return affixes[0];
+};
+
+const getRandomItems = (array, count) => {
+  const shuffled = [...array].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
+const rollRequirementRarity = (config, currentStageConfig) => {
+  const weights = currentStageConfig.rarityWeights;
+  const r = Math.random();
+  
+  // 累积概率计算
+  let accumulated = 0;
+  
+  // 强制按照 weights 权重 Roll，如果阶段没有配置该稀有度权重，则不会 Roll 出来
+  if (weights.common > 0) {
+      accumulated += weights.common;
+      if (r <= accumulated) return config.rarity.find(r => r.id === 'common');
+  }
+  if (weights.uncommon > 0) {
+      accumulated += weights.uncommon;
+      if (r <= accumulated) return config.rarity.find(r => r.id === 'uncommon');
+  }
+  if (weights.rare > 0) {
+      accumulated += weights.rare;
+      if (r <= accumulated) return config.rarity.find(r => r.id === 'rare');
+  }
+  if (weights.epic > 0) {
+      accumulated += weights.epic;
+      if (r <= accumulated) return config.rarity.find(r => r.id === 'epic');
+  }
+  
+  // Fallback to common
+  return config.rarity.find(r => r.id === 'common');
+};
+
+const generateOrder = (allNormalItems, config, hasSkill = () => false, currentStageConfig) => {
+  const { orderCountRange } = currentStageConfig;
+  const rand = Math.random();
+  let count = orderCountRange[0]; 
+  
+  // 简单的加权计算数量
+  if (orderCountRange[1] > orderCountRange[0]) {
+      if (currentStageConfig.id === 1) { // Stage 2
+          count = rand < 0.5 ? 2 : 3;
+      } else if (currentStageConfig.id === 2) { // Stage 3
+          count = rand < 0.3 ? 2 : 3;
+      } else if (currentStageConfig.id === 3) { // Stage 4
+          count = rand < 0.8 ? 3 : 4;
+      } else if (currentStageConfig.id === 4) { // Stage 5
+          count = rand < 0.6 ? 3 : 4;
+      }
+  }
+
+  // 技能【偷工减料】
+  if (hasSkill('cut_corners') && Math.random() < 0.20 && count > 1) {
+      count -= 1;
+  }
+
+  const rawRequirements = getRandomItems(allNormalItems, count);
+  
+  const requirements = rawRequirements.map(item => ({
+    ...item,
+    requiredRarity: rollRequirementRarity(config, currentStageConfig)
+  }));
+
+  const totalReqBonus = requirements.reduce((sum, req) => sum + req.requiredRarity.bonus, 0);
+  
+  // 先确定奖励类型，再根据数量分配对应的基础值
+  const rewardType = Math.random() < 0.5 ? 'gold' : 'ticket';
+  let rawBaseReward = 0;
+
+  if (count <= 2) {
+      rawBaseReward = rewardType === 'gold' ? 5 : 10;
+  } else if (count === 3) {
+      rawBaseReward = rewardType === 'gold' ? 10 : 20;
+  } else {
+      rawBaseReward = rewardType === 'gold' ? 15 : 30;
+  }
+
+  const baseReward = Math.ceil(rawBaseReward * (1 + totalReqBonus));
+
+  return {
+    id: Math.random().toString(36).substr(2, 9),
+    requirements,
+    baseReward,
+    rewardType, 
+    remainingRefreshes: 2,
+    isMainline: false
+  };
+};
+
+const generateMainlineOrder = (level, config, currentStageConfig) => {
+  if (level >= MAINLINE_ITEMS.length) return null;
+
+  const targetMainlineItem = MAINLINE_ITEMS[level];
+  const targetPool = config.pools.find(p => p.id === targetMainlineItem.poolId);
+  
+  // 修正：确保主线需求的物品存在于被截断的奖池中，且池子类型也是已解锁的
+  const availableItems = targetPool.items.slice(0, currentStageConfig.poolSize);
+  const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+
+  // 根据阶段设置主线需求的稀有度
+  const mainlineFillerRarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const targetRarityId = mainlineFillerRarities[level] || 'common';
+  const fillerRarity = config.rarity.find(r => r.id === targetRarityId);
+  const mythicRarity = config.rarity.find(r => r.id === 'mythic');
+
+  const req1 = {
+     ...targetMainlineItem,
+     requiredRarity: mythicRarity,
+     isMainlineItem: true
+  };
+
+  const req2 = {
+     ...randomItem,
+     poolId: targetPool.id,
+     poolName: targetPool.name,
+     requiredRarity: fillerRarity
+  };
+
+  return {
+    id: `mainline_order_${level}`,
+    requirements: [req1, req2],
+    baseReward: 0,
+    rewardType: 'none',
+    remainingRefreshes: 0,
+    isMainline: true,
+    level: level + 1,
+    name: `主线进度 ${level + 1}/5`
+  };
+};
+
+const rollRarity = (config, affixKey = null, currentGold = 0, hasSkill = () => false, skillState = {}, currentStageConfig) => {
+  const { rarity: rarityConfig } = config;
+  const weights = currentStageConfig.rarityWeights;
+
+  // 检查技能保底
+  if (skillState.nextDrawGuaranteedRare) {
+      const allowedRarities = rarityConfig.filter(r => weights[r.id] > 0);
+      const highRarities = allowedRarities.filter(r => ['rare', 'epic', 'legendary'].includes(r.id));
+      
+      if (highRarities.length > 0) {
+           return highRarities[Math.floor(Math.random() * highRarities.length)];
+      } else {
+           return allowedRarities[allowedRarities.length - 1];
+      }
+  }
+
+  // 词缀处理
+  if (affixKey === 'hardened' || affixKey === 'purified') {
+      if (weights.legendary > 0) {
+        const r = Math.random();
+        if (r < 0.67) return rarityConfig.find(r => r.id === 'rare');
+        if (r < 0.97) return rarityConfig.find(r => r.id === 'epic');
+        return rarityConfig.find(r => r.id === 'legendary');
+      } else if (weights.epic > 0) {
+          const r = Math.random();
+          return r < 0.7 ? rarityConfig.find(r => r.id === 'rare') : rarityConfig.find(r => r.id === 'epic');
+      } else if (weights.rare > 0) {
+          return rarityConfig.find(r => r.id === 'rare');
+      }
+      return rarityConfig.find(r => r.id === 'uncommon'); // Fallback
+  }
+
+  if (affixKey === 'volatile') {
+    if (weights.legendary > 0) {
+        const r = Math.random();
+        if (r < 0.92) return rarityConfig.find(r => r.id === 'common');
+        return rarityConfig.find(r => r.id === 'legendary');
+    }
+    return rarityConfig.find(r => r.id === 'common');
+  }
+
+  if (affixKey === 'fragmented') {
+    return rarityConfig.find(r => r.id === 'common');
+  }
+
+  const r = Math.random();
+  let accumulated = 0;
+  
+  let legendaryProbMultiplier = 1;
+  if (hasSkill('lucky_7') && (currentGold % 10 === 7)) {
+      legendaryProbMultiplier = 2;
+  }
+
+  // 使用 Stage Config 的权重进行 Roll
+  const orderedRarityIds = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  
+  for (const rid of orderedRarityIds) {
+      if (weights[rid] > 0) {
+        let prob = weights[rid];
+        if (rid === 'legendary') prob *= legendaryProbMultiplier; // 虽然权重表里是 0，但如果未来配置开放了
+        accumulated += prob;
+        if (r <= accumulated) {
+            return rarityConfig.find(item => item.id === rid);
+        }
+      }
+  }
+
+  return rarityConfig[0]; 
+};
+
+const getNextRarity = (currentRarityId, config) => {
+  const { rarity: rarityConfig } = config;
+  const currentIndex = rarityConfig.findIndex(r => r.id === currentRarityId);
+  if (currentIndex !== -1 && currentIndex < rarityConfig.length - 1) {
+    return rarityConfig[currentIndex + 1];
+  }
+  return null;
+};
+
+// --- UI 组件 ---
+
+const Toast = ({ message, type = 'info', onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 2000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
+  
+  return (
+    <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[200] ${bgColor} text-white px-6 py-2 rounded-full shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4 fade-in`}>
+      {type === 'error' ? <AlertCircle size={18} /> : <Info size={18} />}
+      <span className="font-bold text-sm">{message}</span>
+    </div>
+  );
+};
+
+const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95">
+        <h3 className="text-xl font-black text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-600 mb-6">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button 
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg font-bold text-slate-500 hover:bg-slate-100"
+          >
+            取消
+          </button>
+          <button 
+            onClick={onConfirm}
+            className="px-6 py-2 rounded-lg font-bold bg-red-500 text-white hover:bg-red-600 shadow-md"
+          >
+            确认
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 技能选择/替换弹窗
+const SkillSelectionModal = ({ candidates, onSelect, currentSkills, onReplace }) => {
+    const isReplacing = currentSkills && currentSkills.length >= 3;
+    const [selectedCandidate, setSelectedCandidate] = useState(null);
+    const [targetOldSkillId, setTargetOldSkillId] = useState(null); 
+    const [isPeeking, setIsPeeking] = useState(false); // 偷看状态
+
+    return (
+        <div className={`fixed inset-0 z-[200] flex items-center justify-center transition-colors duration-200 ${isPeeking ? 'bg-transparent' : 'bg-black/80 backdrop-blur-md'}`}>
+            {/* 偷看按钮 - 始终可见 */}
+            <button
+                className="absolute top-4 right-4 z-[210] bg-white text-slate-800 p-3 rounded-full shadow-lg font-bold flex items-center gap-2 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer ring-2 ring-slate-200"
+                onMouseDown={() => setIsPeeking(true)}
+                onMouseUp={() => setIsPeeking(false)}
+                onMouseLeave={() => setIsPeeking(false)}
+                onTouchStart={() => setIsPeeking(true)}
+                onTouchEnd={() => setIsPeeking(false)}
+                title="按住查看底部内容"
+            >
+                <Eye size={20} />
+                <span className="hidden md:inline">按住查看</span>
+            </button>
+
+            {/* 弹窗主体 - 偷看时隐藏 */}
+            <div className={`w-full max-w-5xl p-6 lg:p-8 flex flex-col items-center h-[90vh] overflow-y-auto transition-opacity duration-200 ${isPeeking ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                <h2 className="text-3xl font-black text-white mb-2 tracking-wider uppercase">
+                    {isReplacing ? "技能槽已满！" : "选择一个技能"}
+                </h2>
+                <p className="text-slate-300 mb-8 font-bold text-center">
+                    {isReplacing ? "请分别选择一个【新技能】和一个【旧技能】进行替换" : "主线任务奖励"}
+                </p>
+
+                <div className="flex flex-col gap-8 w-full">
+                    {/* 新技能候选区 */}
+                    <div className="w-full">
+                        <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                             <Sparkles size={16} /> 新技能候选 (点击选择)
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                             {candidates.map((skill) => {
+                                // Safe render for Icon
+                                const SkillIcon = skill.Icon || Zap;
+                                return (
+                                <button
+                                    key={skill.id}
+                                    onClick={() => {
+                                        if (!isReplacing) onSelect(skill);
+                                        else setSelectedCandidate(skill);
+                                    }}
+                                    className={`
+                                        bg-white rounded-2xl p-6 flex flex-col items-center gap-3 transition-all duration-200 relative group
+                                        ${!isReplacing ? 'hover:scale-105 hover:shadow-2xl cursor-pointer' : ''}
+                                        ${isReplacing && selectedCandidate?.id === skill.id ? 'ring-4 ring-green-500 scale-105 shadow-xl bg-green-50' : 'opacity-90 hover:opacity-100'}
+                                    `}
+                                >
+                                    {isReplacing && selectedCandidate?.id === skill.id && (
+                                        <div className="absolute -top-3 -right-3 bg-green-500 text-white px-3 py-1 rounded-full font-black text-xs shadow-lg z-10 flex items-center gap-1">
+                                            <Check size={12}/> 学习
+                                        </div>
+                                    )}
+                                    <div className={`w-14 h-14 rounded-full ${skill.color} flex items-center justify-center shadow-inner`}>
+                                        <SkillIcon size={28} />
+                                    </div>
+                                    <div className="text-center">
+                                        <h3 className="text-lg font-bold text-slate-800">{skill.name}</h3>
+                                        <p className="text-xs text-slate-500 leading-relaxed mt-1">{skill.desc}</p>
+                                    </div>
+                                    {!isReplacing && <span className="mt-2 text-xs font-bold text-blue-500 uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">点击获取</span>}
+                                </button>
+                            )})}
+                        </div>
+                    </div>
+
+                    {/* 旧技能区 (替换模式下为可交互，非替换模式下为只读展示) */}
+                    <div className="w-full p-6 rounded-3xl bg-slate-800/50 border border-slate-700">
+                         <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            {isReplacing ? <><Trash2 size={16} /> 选择要遗忘的旧技能</> : <><Info size={16} /> 当前已拥有技能</>}
+                         </div>
+                         
+                         {currentSkills.length === 0 ? (
+                             <div className="text-slate-500 italic text-center py-4">暂无技能</div>
+                         ) : (
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {currentSkills.map(skillId => {
+                                    const skill = SKILL_DEFINITIONS.find(s => s.id === skillId);
+                                    const SkillIcon = skill?.Icon || Zap;
+                                    return (
+                                        <button
+                                            key={skill?.id || Math.random()}
+                                            onClick={() => isReplacing && setTargetOldSkillId(skill?.id)}
+                                            disabled={!isReplacing}
+                                            className={`
+                                                flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all relative
+                                                ${isReplacing 
+                                                    ? (targetOldSkillId === skill?.id 
+                                                        ? 'bg-red-500/20 border-red-500 text-white ring-2 ring-red-500 shadow-lg scale-105 cursor-pointer' 
+                                                        : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 cursor-pointer')
+                                                    : 'bg-slate-700/50 border-slate-600 text-slate-400 cursor-default opacity-80' // 只读样式
+                                                }
+                                            `}
+                                        >
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${skill?.color || 'bg-slate-500'} bg-opacity-90 shadow-sm`}>
+                                                <SkillIcon size={24} />
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="font-bold">{skill?.name || '未知技能'}</div>
+                                                <div className="text-[10px] opacity-70 mt-1">{skill?.desc}</div>
+                                            </div>
+                                            {isReplacing && targetOldSkillId === skill?.id && (
+                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white px-2 py-0.5 rounded-full font-bold text-[10px] shadow-sm">
+                                                    遗忘
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                             </div>
+                         )}
+                    </div>
+                </div>
+
+                {/* 操作栏 */}
+                <div className="mt-8 flex gap-4 w-full justify-center">
+                     <button
+                        onClick={() => onSelect(null)} 
+                        className="px-8 py-3 rounded-full border-2 border-slate-500 text-slate-300 hover:bg-slate-700 hover:text-white transition-all font-bold uppercase tracking-wider"
+                    >
+                        放弃新技能
+                    </button>
+                    
+                    {isReplacing && (
+                         <button
+                            disabled={!selectedCandidate || !targetOldSkillId}
+                            onClick={() => onReplace(targetOldSkillId, selectedCandidate)}
+                            className={`
+                                px-8 py-3 rounded-full font-black text-lg shadow-xl flex items-center gap-2 transition-all
+                                ${selectedCandidate && targetOldSkillId 
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105 hover:shadow-green-500/50' 
+                                    : 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50'
+                                }
+                            `}
+                        >
+                            <span>确认替换</span>
+                            {selectedCandidate && targetOldSkillId && <ArrowRight size={20} />}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 核心游戏组件 (GameCore) ---
+
+function GameCore({ config, onOpenSettings, onReset, initialSkills = [] }) {
+  const [gold, setGold] = useState(config.global.initialGold);
+  const [tickets, setTickets] = useState(config.global.initialTickets);
+  
+  const [mainlineProgress, setMainlineProgress] = useState(0); 
+  
+  // 修正：从 config.stages 获取配置
+  const currentStageConfig = config.stages[mainlineProgress] || config.stages[config.stages.length - 1];
+  const maxInventorySize = currentStageConfig.inventorySize;
+
+  const [drawCount, setDrawCount] = useState(0);
+
+  const [activePools, setActivePools] = useState([]);
+  const [orders, setOrders] = useState([]); 
+  const [mainlineOrder, setMainlineOrder] = useState(null); 
+
+  const [inventory, setInventory] = useState([]); 
+  
+  const [pendingItem, setPendingItem] = useState(null);
+  const [pendingQueue, setPendingQueue] = useState([]); 
+
+  const [selectedSlot, setSelectedSlot] = useState(null);
+
+  const [hoveredPoolId, setHoveredPoolId] = useState(null);
+  const [hoveredItemName, setHoveredItemName] = useState(null);
+  const [hoveredSlotIndex, setHoveredSlotIndex] = useState(null);
+  
+  // 新增：记录当前悬浮的奖池内实际有的物品名称，用于高亮检测
+  const [hoveredPoolItemNames, setHoveredPoolItemNames] = useState([]);
+
+  const [isSubmitMode, setIsSubmitMode] = useState(false);
+  const [isRecycleMode, setIsRecycleMode] = useState(false); 
+  const [selectedIndices, setSelectedIndices] = useState([]);
+
+  const [modalContent, setModalContent] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(null); 
+  
+  // 技能系统状态
+  const [skills, setSkills] = useState(initialSkills); // Store Skill IDs
+  const [skillSelectionCandidates, setSkillSelectionCandidates] = useState(null);
+  const [skillState, setSkillState] = useState({
+      consecutiveCommons: 0,
+      nextDrawGuaranteedRare: false,
+      nextDrawExtraItem: false,
+  });
+
+  const [toast, setToast] = useState(null); 
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+  };
+
+  const hasSkill = (id) => skills.includes(id);
+
+  // 修正：将 currentStageConfig 传入 getAllNormalItems，并加入依赖数组
+  const allNormalItems = useMemo(() => getAllNormalItems(config.pools, currentStageConfig), [config.pools, currentStageConfig]);
+
+  // 监听外部注入的技能（开发者工具热更新）
+  useEffect(() => {
+    // 开发者工具热更新：直接覆盖当前所有技能
+    if (initialSkills && initialSkills.length > 0) {
+        setSkills([...initialSkills]);
+    }
+  }, [initialSkills]);
+
+  // 生成主线订单 (当进度变化时)
+  useEffect(() => {
+    if (mainlineProgress < 5) {
+        setMainlineOrder(generateMainlineOrder(mainlineProgress, config, currentStageConfig));
+    } else {
+        setMainlineOrder(null); 
+    }
+  }, [mainlineProgress, config, currentStageConfig]); // Add currentStageConfig dep
+
+  // 初始化订单 - 依赖 currentStageConfig
+  useEffect(() => {
+      // 这里的逻辑稍微调整：当阶段变化时，如果订单槽位增加了，补齐订单
+      if (orders.length < currentStageConfig.orderSlots) {
+          const needed = currentStageConfig.orderSlots - orders.length;
+          const newOrders = [...orders, ...Array(needed).fill(null).map(() => generateOrder(allNormalItems, config, hasSkill, currentStageConfig))];
+          setOrders(newOrders);
+      } else if (orders.length === 0) {
+          // 初始加载
+          setOrders(Array(currentStageConfig.orderSlots).fill(null).map(() => generateOrder(allNormalItems, config, hasSkill, currentStageConfig)));
+      }
+  }, [config, allNormalItems, currentStageConfig.orderSlots]); // 注意依赖
+
+  // 新的奖池生成逻辑
+  const generateActivePools = () => {
+    const result = [];
+    const usedAffixIds = new Set();
+    
+    // 修正：根据 allowedPoolCount 过滤当前可出现的池子类型
+    let tempPools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
+
+    const mainlineChance = config.global.mainlineChance !== undefined ? config.global.mainlineChance : 0.5;
+    const canSpawnMainline = tickets >= 10 && Math.random() < mainlineChance && mainlineProgress < 5;
+
+    let targetMainlineItem = null;
+
+    if (canSpawnMainline) {
+        const neededItems = MAINLINE_ITEMS;
+        for (let i = mainlineProgress; i < neededItems.length; i++) {
+            const itemDef = neededItems[i];
+            const hasItemByName = inventory.some(inv => inv.name === itemDef.name);
+            if (!hasItemByName) {
+                targetMainlineItem = itemDef;
+                break;
+            }
+        }
+    }
+
+    let slotTypes = ['normal', 'normal', 'normal'];
+    if (targetMainlineItem) {
+        slotTypes[0] = 'mainline'; 
+    }
+    
+    slotTypes = slotTypes.sort(() => 0.5 - Math.random());
+
+    for (let i = 0; i < 3; i++) {
+       let selectedPool = null;
+       const type = slotTypes[i];
+
+       if (type === 'mainline' && targetMainlineItem) {
+           selectedPool = {
+             id: `mainline_pool_${targetMainlineItem.id}_${Date.now()}`, 
+             name: `${targetMainlineItem.name}池`, 
+             type: 'mainline',
+             targetItem: targetMainlineItem,
+             weight: 0,
+             cost: 10,
+             currency: 'ticket',
+             icon: targetMainlineItem.icon,
+             color: 'bg-purple-100 text-purple-900 border-purple-300 ring-2 ring-purple-400',
+             items: [] 
+           };
+           targetMainlineItem = null; 
+       } else {
+           if (tempPools.length > 0) {
+               const totalWeight = tempPools.reduce((sum, p) => sum + p.weight, 0);
+               let r = Math.random() * totalWeight;
+               let selectedIndex = -1;
+
+               for (let j = 0; j < tempPools.length; j++) {
+                 r -= tempPools[j].weight;
+                 if (r <= 0) {
+                   selectedIndex = j;
+                   break;
+                 }
+               }
+               if (selectedIndex === -1) selectedIndex = tempPools.length - 1;
+
+               // 深拷贝并截取 items，根据 Stage Config 的 poolSize
+               selectedPool = JSON.parse(JSON.stringify(tempPools[selectedIndex]));
+               selectedPool.originalId = selectedPool.id; 
+               selectedPool.id = `${selectedPool.id}_${i}_${Math.random().toString(36).substr(2,5)}`;
+               
+               // 根据阶段限制池子内物品数量
+               selectedPool.items = selectedPool.items.slice(0, currentStageConfig.poolSize);
+
+               tempPools.splice(selectedIndex, 1);
+           }
+       }
+       
+       if (selectedPool && selectedPool.type === 'normal') {
+          // 仅当阶段机制允许 affixes 时才添加词缀
+          if (currentStageConfig.mechanics.affixes) {
+              const availableAffixes = config.affixes.filter(a => !usedAffixIds.has(a.id));
+              const affixPool = availableAffixes.length > 0 ? availableAffixes : config.affixes;
+              const affix = getRandomAffix(affixPool);
+              
+              selectedPool.affixKey = affix.id;
+              selectedPool.affix = affix;
+              selectedPool.cost = affix.cost;
+              usedAffixIds.add(affix.id);
+          } else {
+              // 阶段 1-2 无词缀，默认价格由阶段配置决定
+              selectedPool.cost = currentStageConfig.fixedPrice !== null ? currentStageConfig.fixedPrice : 1; 
+          }
+       }
+
+       if (selectedPool) result.push(selectedPool);
+    }
+    return result;
+  };
+
+  const refreshPools = () => {
+    setActivePools(generateActivePools());
+  };
+
+  useEffect(() => {
+    refreshPools();
+  }, [config, mainlineProgress]); // 移除 inventory/tickets，防止操作导致刷新
+
+  // --- 技能触发辅助函数 ---
+  const triggerSkillSelection = () => {
+     // 过滤掉已拥有的技能
+     // 增加阶段检查：
+     // 精打细算, 贵宾折扣 -> mainlineProgress >= 2 (完成阶段2任务，进入阶段3)
+     // 困难订单专家 -> mainlineProgress >= 3 (完成阶段3任务，进入阶段4)
+
+     const availableSkills = SKILL_DEFINITIONS.filter(s => {
+         if (!config.enabledSkillIds.includes(s.id)) return false;
+         if (skills.includes(s.id)) return false;
+
+         // 阶段锁检查
+         // 2025-11-25 更新：刷新类技能（偷工减料, 时间冻结）推迟到 Stage 4 (进度 >= 3)
+         if ((s.id === 'calculated' || s.id === 'vip_discount') && mainlineProgress < 2) return false;
+         if (s.id === 'hard_order_expert' && mainlineProgress < 3) return false;
+         if ((['cut_corners', 'time_freeze', 'negotiator'].includes(s.id)) && mainlineProgress < 3) return false;
+         
+         return true;
+     });
+
+     if (availableSkills.length === 0) {
+         showToast("暂无更多可学习技能！");
+         return;
+     }
+
+     const candidates = getRandomItems(availableSkills, Math.min(3, availableSkills.length));
+     setSkillSelectionCandidates(candidates);
+  };
+
+  const handleSkillSelect = (skill) => {
+      if (!skill) {
+          // Give up
+          setSkillSelectionCandidates(null);
+          return;
+      }
+      if (skills.length < 3) {
+          setSkills(prev => [...prev, skill.id]);
+          setSkillSelectionCandidates(null);
+          showToast(`获得了技能：${skill.name}`);
+      }
+  };
+
+  const handleSkillReplace = (oldSkillId, newSkill) => {
+      setSkills(prev => prev.map(id => id === oldSkillId ? newSkill.id : id));
+      setSkillSelectionCandidates(null);
+      showToast(`替换技能：${newSkill.name}`);
+  };
+
+  // --- 统计与计算 ---
+  const maxRequirementRarityMap = useMemo(() => {
+    const map = {};
+    const allOrders = [...orders];
+    if (mainlineOrder) allOrders.push(mainlineOrder);
+
+    allOrders.forEach(order => {
+      if (!order) return;
+      order.requirements.forEach(req => {
+         const currentMax = map[req.name] || -1;
+         if (req.requiredRarity.bonus > currentMax) {
+           map[req.name] = req.requiredRarity.bonus;
+         }
+      });
+    });
+    return map;
+  }, [orders, mainlineOrder]);
+
+  const satisfiableOrders = useMemo(() => {
+    if (!isSubmitMode || selectedIndices.length === 0) return [];
+    const selectedItems = selectedIndices.map(idx => inventory[idx]).filter(Boolean);
+    const handGroups = {};
+    selectedItems.forEach(item => {
+      if (!handGroups[item.name]) handGroups[item.name] = [];
+      handGroups[item.name].push(item);
+    });
+    Object.keys(handGroups).forEach(k => {
+      handGroups[k].sort((a, b) => b.rarity.bonus - a.rarity.bonus);
+    });
+
+    const checkOrder = (order, idx, isMain) => {
+        const tempHand = JSON.parse(JSON.stringify(handGroups));
+        let isSatisfied = true;
+        let totalSubmitBonus = 0;
+        
+        // 技能【强迫症】：全同类
+        const allReqs = order.requirements;
+        let isSameType = false;
+        if (hasSkill('ocd') && allReqs.length > 1) {
+            const firstPool = allReqs[0].poolId; // 注意：生成时需带上 poolId
+            isSameType = allReqs.every(r => r.poolId === firstPool);
+        }
+
+        for (const req of order.requirements) {
+            const availableItems = tempHand[req.name];
+            if (!availableItems || availableItems.length === 0) {
+            isSatisfied = false;
+            break;
+            }
+            const matchIndex = availableItems.findIndex(item => item.rarity.bonus >= req.requiredRarity.bonus);
+            if (matchIndex === -1) {
+            isSatisfied = false;
+            break;
+            }
+            const matchedItem = availableItems[matchIndex];
+            totalSubmitBonus += matchedItem.rarity.bonus;
+            availableItems.splice(matchIndex, 1);
+        }
+        if (!isSatisfied) return null;
+        
+        // 计算最终奖励
+        let multiplier = 1 + totalSubmitBonus;
+        if (isSameType) multiplier *= 2; // 强迫症翻倍
+
+        // 技能【贫困救济】
+        let extraGold = 0;
+        if (hasSkill('poverty_relief') && gold < 5 && order.rewardType === 'gold') {
+            extraGold = 10;
+        }
+
+        const finalReward = Math.ceil(order.baseReward * multiplier) + extraGold;
+        return { index: idx, finalReward, rewardType: order.rewardType, isMainline: isMain, reqCount: order.requirements.length, requirements: order.requirements };
+    };
+
+    const results = [];
+    orders.forEach((o, i) => {
+        const res = checkOrder(o, i, false);
+        if (res) results.push(res);
+    });
+    if (mainlineOrder) {
+        const res = checkOrder(mainlineOrder, -1, true); 
+        if (res) results.push(res);
+    }
+
+    return results;
+  }, [isSubmitMode, selectedIndices, inventory, orders, mainlineOrder, gold, skills]); // Add gold, skills to deps
+
+  const totalRecycleValue = useMemo(() => {
+    if (!isRecycleMode || selectedIndices.length === 0) return 0;
+    return selectedIndices.reduce((sum, idx) => {
+      const item = inventory[idx];
+      // 技能【资源回收】逻辑需要知道背包满不满，这里简化处理，只算基础值，具体逻辑在 handleConfirmRecycle
+      return sum + (item ? item.rarity.recycleValue : 0);
+    }, 0);
+  }, [isRecycleMode, selectedIndices, inventory]);
+
+  const selectedItemNames = useMemo(() => {
+    if (!isSubmitMode) return [];
+    return selectedIndices.map(idx => inventory[idx]?.name).filter(Boolean);
+  }, [isSubmitMode, selectedIndices, inventory]);
+
+  // --- 队列处理 ---
+  useEffect(() => {
+    if (!pendingItem && pendingQueue.length > 0) {
+      const nextItem = pendingQueue[0];
+      setPendingQueue(prev => prev.slice(1)); 
+      
+      if (inventory.length < maxInventorySize) {
+        setInventory(prev => [...prev, nextItem]);
+      } else {
+        setPendingItem(nextItem);
+        setSelectedSlot(null);
+      }
+    }
+  }, [pendingItem, pendingQueue, inventory.length, selectionMode, maxInventorySize]);
+
+  const createItem = (pool, itemTemplate, affixKey = null) => {
+    const rarity = rollRarity(config, affixKey, gold, hasSkill, skillState, currentStageConfig);
+    return { 
+      ...itemTemplate, 
+      uid: Math.random().toString(36).substr(2, 9), 
+      poolName: pool.name, 
+      rarity: rarity, 
+      sterile: affixKey === 'hardened' 
+    };
+  };
+
+  const handleDraw = (pool) => {
+    if (pendingItem || isSubmitMode || isRecycleMode || selectionMode || pendingQueue.length > 0) return;
+
+    let finalCost = pool.cost;
+
+    // 技能【精打细算】：金币<10，消耗-2
+    if (pool.currency === 'gold' && hasSkill('calculated') && gold < 10) {
+        finalCost = Math.max(1, finalCost - 2);
+    }
+
+    // 技能【贵宾折扣】
+    if (pool.currency === 'gold' && hasSkill('vip_discount') && (pool.affixKey === 'precise' || pool.affixKey === 'targeted')) {
+        finalCost = Math.max(0, finalCost - 1);
+    }
+
+    if (pool.type === 'mainline') {
+      if (tickets < finalCost) {
+        showToast("奖券不足！", "error");
+        return;
+      }
+      setTickets(prev => prev - finalCost);
+      handleMainlineDraw(pool);
+    } else {
+      if (pool.affixKey === 'trade_in') {
+        setSelectionMode({ type: 'trade_in', pool });
+        return;
+      }
+      if (pool.affixKey === 'precise') {
+        if (gold < finalCost) { showToast("金币不足！", "error"); return; }
+        setGold(prev => prev - finalCost);
+        
+        const candidates = [];
+        let itemIndices = pool.items.map((_, i) => i);
+        
+        for(let i=0; i<2; i++) {
+           if (itemIndices.length === 0) itemIndices = pool.items.map((_, i) => i); 
+           const randArrIdx = Math.floor(Math.random() * itemIndices.length);
+           const actualItemIdx = itemIndices[randArrIdx];
+           itemIndices.splice(randArrIdx, 1); 
+           const tpl = pool.items[actualItemIdx];
+           candidates.push(createItem(pool, tpl, pool.affixKey));
+        }
+        setSelectionMode({ type: 'precise', pool, items: candidates });
+        return;
+      }
+      if (pool.affixKey === 'targeted') {
+        if (gold < finalCost) { showToast("金币不足！", "error"); return; }
+        setGold(prev => prev - finalCost);
+        setSelectionMode({ type: 'targeted', pool, items: pool.items, cost: finalCost }); 
+        return;
+      }
+      if (gold < finalCost) {
+        showToast("金币不足！", "error");
+        return;
+      }
+      setGold(prev => prev - finalCost);
+      handleNormalDraw(pool);
+    }
+  };
+
+  const handleNormalDraw = (pool) => {
+    setDrawCount(prev => prev + 1);
+    
+    let itemsToProcess = [];
+
+    if (pool.affixKey === 'fragmented') {
+      for(let i=0; i<3; i++) {
+        const tpl = pool.items[Math.floor(Math.random() * pool.items.length)];
+        itemsToProcess.push(createItem(pool, tpl, 'fragmented'));
+      }
+    } else {
+      const tpl = pool.items[Math.floor(Math.random() * pool.items.length)];
+      const newItem = createItem(pool, tpl, pool.affixKey);
+      itemsToProcess.push(newItem);
+    }
+
+    // 技能【自动补货】：多获得1个
+    if (skillState.nextDrawExtraItem) {
+        const tpl = pool.items[Math.floor(Math.random() * pool.items.length)];
+        const extraItem = createItem(pool, tpl, pool.affixKey);
+        itemsToProcess.push(extraItem);
+        // Reset state later
+    }
+    
+    // 更新技能状态 (Consolation Prize, Turn Fortune, Auto Restock)
+    const newSkillState = { ...skillState };
+    newSkillState.nextDrawExtraItem = false;
+    newSkillState.nextDrawGuaranteedRare = false;
+
+    // 检查【安慰奖】计数
+    let allCommon = true;
+    itemsToProcess.forEach(item => {
+        if (item.rarity.id !== 'common') allCommon = false;
+    });
+
+    if (allCommon) {
+        newSkillState.consecutiveCommons += 1;
+    } else {
+        newSkillState.consecutiveCommons = 0;
+    }
+
+    if (hasSkill('consolation_prize') && newSkillState.consecutiveCommons >= 5) {
+        newSkillState.nextDrawGuaranteedRare = true;
+        newSkillState.consecutiveCommons = 0; // Triggered, reset count
+        showToast("【安慰奖】触发：下一次必定稀有！", "info");
+    }
+
+    setSkillState(newSkillState);
+    handleIncomingItems(itemsToProcess);
+    refreshPools();
+  };
+
+  const handleIncomingItems = (items) => {
+    // 技能【谈判专家】：史诗+ -> 刷新次数+1
+    if (hasSkill('negotiator')) {
+        let triggered = false;
+        items.forEach(item => {
+            if (item.rarity.bonus >= 0.4) triggered = true; // Epic bonus is 0.4
+        });
+        if (triggered) {
+            setOrders(prev => prev.map(o => ({...o, remainingRefreshes: o.remainingRefreshes + 1})));
+            showToast("【谈判专家】触发：订单刷新次数+1");
+        }
+    }
+
+    const queue = [...items];
+    const freeSlots = maxInventorySize - inventory.length;
+    
+    const toAdd = queue.splice(0, freeSlots);
+    if (toAdd.length > 0) {
+      setInventory(prev => [...prev, ...toAdd]);
+    }
+
+    if (queue.length > 0) {
+      setPendingQueue(prev => [...prev, ...queue]);
+    }
+  };
+
+  const handleMainlineDraw = (pool) => {
+    const mainlineRate = config.global.mainlineDropRate || 0.3;
+    const isMainlineItem = Math.random() < mainlineRate;
+
+    if (isMainlineItem) {
+        const target = pool.targetItem;
+        const mythicRarity = config.rarity.find(r => r.id === 'mythic');
+        const newItem = {
+            ...target,
+            uid: Math.random().toString(36).substr(2, 9),
+            poolName: pool.name,
+            rarity: mythicRarity, 
+            isMainlineItem: true
+        };
+
+        setModalContent({
+            title: "传说降临！",
+            item: newItem,
+            message: "获得了稀有的主线道具！",
+            type: 'resource',
+            actualItem: newItem
+        });
+
+    } else {
+        const randomPool = config.pools[Math.floor(Math.random() * config.pools.length)];
+        const randomItem = randomPool.items[Math.floor(Math.random() * randomPool.items.length)];
+        
+        // 修正：主线池填充物稀有度固定机制 (阶段1=common, 阶段2=uncommon(green), 阶段3=rare(blue), 阶段4+=epic(purple))
+        // 使用 config.stages 中的 id 来判断更稳健，防止数组顺序变动
+        const currentStageId = config.stages[mainlineProgress]?.id;
+
+        let targetRarityId = 'common';
+        if (currentStageId === 1) targetRarityId = 'uncommon'; // Stage 2: 初识价值 -> Green
+        else if (currentStageId === 2) targetRarityId = 'rare'; // Stage 3: 风险引入 -> Blue
+        else if (currentStageId >= 3) targetRarityId = 'epic'; // Stage 4+: 策略/巅峰 -> Purple
+
+        const rarity = config.rarity.find(r => r.id === targetRarityId) || config.rarity[0];
+
+        const newItem = {
+            ...randomItem,
+            uid: Math.random().toString(36).substr(2, 9),
+            poolName: randomPool.name,
+            rarity: rarity
+        };
+        
+        setModalContent({
+            title: rarity.id === 'legendary' ? "金色传说！" : (rarity.id === 'epic' ? "史诗物品" : "意外收获"),
+            item: newItem,
+            message: "来自主线池的意外收获",
+            type: 'normal',
+            actualItem: newItem
+        });
+    }
+  };
+
+  const handleCloseModal = () => {
+    if (modalContent?.type === 'stage_up') {
+        // 关闭阶段晋升弹窗后，触发技能选择
+        setModalContent(null);
+        triggerSkillSelection();
+        return;
+    }
+
+    if (modalContent?.actualItem) {
+      handleIncomingItems([modalContent.actualItem]);
+    }
+    setDrawCount(prev => prev + 1);
+    refreshPools();
+    setModalContent(null);
+  };
+
+  const handleSelectionSelect = (selectedItem) => {
+    const { type, pool } = selectionMode;
+    
+    if (type === 'precise') {
+      setDrawCount(prev => prev + 1);
+      // 精准抽取也可能触发自动补货等逻辑，这里简化处理，直接进背包
+      handleIncomingItems([selectedItem]);
+      refreshPools();
+      setSelectionMode(null);
+    } else if (type === 'targeted') {
+      const newItem = createItem(pool, selectedItem, pool.affixKey);
+      setDrawCount(prev => prev + 1);
+      handleIncomingItems([newItem]);
+      refreshPools();
+      setSelectionMode(null);
+    }
+  };
+
+  const handleSelectionCancel = () => {
+    if (selectionMode?.type === 'targeted') {
+      setGold(prev => prev + selectionMode.cost); // Refund calculated cost
+      setSelectionMode(null);
+    }
+  }
+
+  const handleSlotClick = (index) => {
+    // Inventory logic
+    if (selectionMode?.type === 'trade_in') {
+      const consumedItem = inventory[index]; 
+      if (!consumedItem) return;
+
+      if (consumedItem.isMainlineItem) {
+          showToast("主线道具无法用于以旧换新！", "error");
+          return;
+      }
+
+      const pool = selectionMode.pool;
+      const newInv = [...inventory];
+      newInv.splice(index, 1);
+      setInventory(newInv);
+      
+      let candidates = pool.items.filter(i => i.name !== consumedItem.name);
+      if (candidates.length === 0) candidates = pool.items; 
+
+      const tpl = candidates[Math.floor(Math.random() * candidates.length)];
+      const rarityConfig = config.rarity;
+      const oldRarityIndex = rarityConfig.findIndex(r => r.id === consumedItem.rarity.id);
+      
+      let newRarity;
+      if (oldRarityIndex === -1) {
+          newRarity = rarityConfig[0];
+      } else {
+          const isUpgrade = Math.random() < 0.05; 
+          let newRarityIndex = oldRarityIndex;
+          if (isUpgrade) {
+              newRarityIndex = Math.min(rarityConfig.length - 1, oldRarityIndex + 1);
+          }
+          newRarity = rarityConfig[newRarityIndex];
+      }
+
+      const newItem = { 
+        ...tpl, 
+        uid: Math.random().toString(36).substr(2, 9), 
+        poolName: pool.name, 
+        rarity: newRarity,
+        sterile: consumedItem.sterile 
+      };
+      
+      setDrawCount(prev => prev + 1);
+      handleIncomingItems([newItem]);
+      // Trade In 是抽奖行为，消耗物品获得新物品，应该刷新池子
+      refreshPools();
+      setSelectionMode(null);
+      return;
+    }
+
+    if (isSubmitMode || isRecycleMode) {
+      if (!inventory[index]) return;
+      if (selectedIndices.includes(index)) {
+        setSelectedIndices(prev => prev.filter(i => i !== index));
+      } else {
+        setSelectedIndices(prev => [...prev, index]);
+      }
+      return;
+    }
+
+    if (pendingItem) {
+      const targetItem = inventory[index];
+      // Merge
+      if (targetItem && !targetItem.sterile && !pendingItem.sterile &&
+          pendingItem.name === targetItem.name && 
+          pendingItem.rarity.id === targetItem.rarity.id && 
+          pendingItem.rarity.id !== 'mythic') {
+        
+        // 阶段合成锁检查
+        if (!currentStageConfig.mechanics.synthesis) {
+            showToast("合成系统暂未解锁！", "error");
+            return;
+        }
+
+        const nextRarity = getNextRarity(targetItem.rarity.id, config);
+        
+        // 新增：检查下一级品质在当前阶段是否允许存在 (weight > 0)
+        // 修正：2025-11-25 确保合成不超出当前时代限制
+        if (currentStageConfig.rarityWeights[nextRarity.id] <= 0) {
+            showToast(`受限于当前时代工艺，无法合成【${nextRarity.name}】物品！`, 'error');
+            return;
+        }
+
+        const upgradedItem = { ...targetItem, rarity: nextRarity, uid: Math.random().toString(36).substr(2, 9) };
+        const newInventory = [...inventory];
+        newInventory[index] = upgradedItem;
+        setInventory(newInventory);
+        setPendingItem(null);
+        return;
+      }
+      // Recycle replace
+      const recycleGain = targetItem.rarity.recycleValue;
+      if (recycleGain > 0) setGold(prev => prev + recycleGain);
+
+      const newInventory = [...inventory];
+      newInventory[index] = pendingItem; 
+      setInventory(newInventory);
+      setPendingItem(null);
+      return;
+    }
+
+    if (selectedSlot === null) {
+      if (inventory[index]) setSelectedSlot(index);
+      return;
+    }
+    if (selectedSlot === index) {
+      setSelectedSlot(null);
+      return;
+    }
+    if (typeof selectedSlot === 'number') {
+      const sourceItem = inventory[selectedSlot];
+      const targetItem = inventory[index];
+
+      // Merge on move
+      if (targetItem && !targetItem.sterile && !sourceItem.sterile &&
+          sourceItem.name === targetItem.name && 
+          sourceItem.rarity.id === targetItem.rarity.id && 
+          sourceItem.rarity.id !== 'mythic') {
+        
+        // 阶段合成锁检查
+        if (!currentStageConfig.mechanics.synthesis) {
+            showToast("合成系统暂未解锁！", "error");
+            setSelectedSlot(null);
+            return;
+        }
+
+        const nextRarity = getNextRarity(sourceItem.rarity.id, config);
+        
+        // 新增：检查下一级品质在当前阶段是否允许存在 (weight > 0)
+        if (currentStageConfig.rarityWeights[nextRarity.id] <= 0) {
+             showToast(`受限于当前时代工艺，无法合成【${nextRarity.name}】物品！`, 'error');
+             setSelectedSlot(null); // Deselect
+             return;
+        }
+
+        const upgradedItem = { ...targetItem, rarity: nextRarity, uid: Math.random().toString(36).substr(2, 9) };
+        const newInventory = [...inventory];
+        newInventory[index] = upgradedItem;
+        newInventory[selectedSlot] = null;
+        setInventory(newInventory.filter(item => item !== null));
+        setSelectedSlot(null);
+        return;
+      }
+      // Swap
+      if (targetItem) {
+        const newInventory = [...inventory];
+        newInventory[index] = sourceItem;
+        newInventory[selectedSlot] = targetItem;
+        setInventory(newInventory);
+        setSelectedSlot(null);
+        return;
+      }
+      // Move to empty
+      const newInventory = [...inventory];
+      const [movedItem] = newInventory.splice(selectedSlot, 1);
+      newInventory.splice(index, 0, movedItem);
+      setInventory(newInventory);
+      setSelectedSlot(null);
+    }
+  };
+
+  const handleDiscardNew = () => {
+    const recycleGain = pendingItem.rarity.recycleValue;
+    if (recycleGain > 0) setGold(prev => prev + recycleGain);
+    setPendingItem(null);
+    setSelectedSlot(null);
+  };
+
+  const handleRefreshAllOrders = () => {
+    if (pendingItem || isSubmitMode || isRecycleMode || selectionMode) return;
+    if (gold < config.global.refreshCost) return; 
+    // 安全检查：防止未解锁时调用
+    if (!currentStageConfig.mechanics.refresh) {
+         showToast("当前时代尚未解锁订单刷新技术！", "error");
+         return;
+    }
+
+    setGold(prev => prev - config.global.refreshCost); 
+    setOrders(Array(currentStageConfig.orderSlots).fill(null).map(() => generateOrder(allNormalItems, config, hasSkill, currentStageConfig)));
+  };
+
+  const handleRefreshSingleOrder = (index) => {
+    if (pendingItem || isSubmitMode || isRecycleMode || selectionMode) return;
+    
+    // 安全检查
+    if (!currentStageConfig.mechanics.refresh) {
+         showToast("当前时代尚未解锁订单刷新技术！", "error");
+         return;
+    }
+
+    const currentOrder = orders[index];
+    if (currentOrder.remainingRefreshes <= 0) return;
+    
+    const newOrder = generateOrder(allNormalItems, config, hasSkill, currentStageConfig);
+
+    // 技能【时间冻结】：20% 概率不消耗次数
+    let newRefreshes = currentOrder.remainingRefreshes - 1;
+    if (hasSkill('time_freeze') && Math.random() < 0.20) {
+        newRefreshes = currentOrder.remainingRefreshes;
+        showToast("【时间冻结】触发：刷新次数未消耗！");
+    }
+    newOrder.remainingRefreshes = newRefreshes; 
+    
+    const newOrders = [...orders];
+    newOrders[index] = newOrder;
+    setOrders(newOrders);
+  };
+
+  const handleOrderClick = (orderIndex, isMainline = false) => {
+    if (!isSubmitMode) return;
+    
+    const order = isMainline ? mainlineOrder : orders[orderIndex];
+    if (!order) return;
+
+    const newSelectedIndices = [...selectedIndices];
+    const tempSelectedIndices = [...newSelectedIndices]; 
+    const indicesToAdd = [];
+    const requirements = [...order.requirements];
+    
+    for (const req of requirements) {
+        const existingMatchIndexInSelected = tempSelectedIndices.findIndex(idx => {
+             const item = inventory[idx];
+             return item && item.name === req.name && item.rarity.bonus >= req.requiredRarity.bonus;
+        });
+
+        if (existingMatchIndexInSelected !== -1) {
+            tempSelectedIndices.splice(existingMatchIndexInSelected, 1);
+            continue;
+        }
+
+        const currentlyUsedIndices = new Set([...selectedIndices, ...indicesToAdd]);
+        const candidates = inventory
+            .map((item, idx) => ({ item, idx }))
+            .filter(({ item, idx }) => 
+                item && 
+                !currentlyUsedIndices.has(idx) && 
+                item.name === req.name && 
+                item.rarity.bonus >= req.requiredRarity.bonus
+            );
+        
+        candidates.sort((a, b) => b.item.rarity.bonus - a.item.rarity.bonus);
+
+        if (candidates.length > 0) {
+            const match = candidates[0];
+            indicesToAdd.push(match.idx);
+        }
+    }
+
+    if (indicesToAdd.length > 0) {
+        setSelectedIndices([...selectedIndices, ...indicesToAdd]);
+    }
+  };
+
+  const handleConfirmSubmission = () => {
+    if (satisfiableOrders.length === 0) {
+      showToast("请至少完成一个任务才能提交！", "error");
+      return;
+    }
+
+    let gainedGold = 0;
+    let gainedTickets = 0;
+    const newOrders = [...orders];
+    const completedIndices = [];
+    let mainlineCompleted = false;
+
+    // 技能状态更新
+    const nextSkillState = { ...skillState };
+
+    satisfiableOrders.forEach(({ index, finalReward, rewardType, isMainline, reqCount, requirements }) => {
+      if (rewardType === 'gold') gainedGold += finalReward;
+      if (rewardType === 'ticket') gainedTickets += finalReward;
+      
+      // 技能【大订单专家】：reqCount == 4 -> 10 tickets
+      if (hasSkill('big_order_expert') && reqCount === 4) {
+          gainedTickets += 10;
+          showToast("【大订单专家】触发：+10奖券");
+      }
+
+      // 技能【困难订单专家】：需求有史诗以上 -> 15 tickets
+      if (hasSkill('hard_order_expert')) {
+          const hasHardReq = requirements.some(req => req.requiredRarity.id === 'epic' || req.requiredRarity.id === 'legendary');
+          if (hasHardReq) {
+              gainedTickets += 15;
+              showToast("【困难订单专家】触发：+15奖券");
+          }
+      }
+
+      // 技能【自动补货】
+      if (hasSkill('auto_restock')) nextSkillState.nextDrawExtraItem = true;
+      // 技能【时来运转】
+      if (hasSkill('turn_fortune')) nextSkillState.nextDrawGuaranteedRare = true;
+
+      if (isMainline) {
+          mainlineCompleted = true;
+      } else {
+          completedIndices.push(index);
+      }
+    });
+
+    setSkillState(nextSkillState);
+
+    setGold(prev => prev + gainedGold);
+    setTickets(prev => prev + gainedTickets);
+
+    completedIndices.forEach(idx => {
+      newOrders[idx] = generateOrder(allNormalItems, config, hasSkill, currentStageConfig);
+    });
+    setOrders(newOrders);
+
+    if (mainlineCompleted) {
+        const nextProgress = mainlineProgress + 1;
+        setMainlineProgress(nextProgress);
+        
+        if (nextProgress >= 5) {
+             setModalContent({
+                title: "恭喜通关！",
+                item: { name: '游戏胜利', icon: '🏆', rarity: { color: 'bg-yellow-500', name: 'VICTORY', starColor: 'text-yellow-200' } },
+                message: "你已经完成了所有主线挑战！",
+                type: 'victory'
+             });
+        } else {
+            // 阶段晋升弹窗
+            const nextStage = config.stages[nextProgress]; // Update access
+            setModalContent({
+                type: 'stage_up',
+                title: `阶段解锁: ${nextStage.name}`,
+                desc: nextStage.desc,
+                unlocks: nextStage.unlocks,
+                item: { name: nextStage.name, icon: '🚀', rarity: { color: 'bg-blue-500', name: 'NEW STAGE', starColor: 'text-white' } }
+            });
+        }
+    }
+
+    const newInventory = inventory.filter((_, idx) => !selectedIndices.includes(idx));
+    setInventory(newInventory);
+
+    setIsSubmitMode(false);
+    setSelectedIndices([]);
+  };
+
+  const handleConfirmRecycle = () => {
+    if (selectedIndices.length === 0) return;
+    
+    let baseValue = totalRecycleValue;
+    let extraTickets = 0;
+
+    // 技能【炼金术】
+    if (hasSkill('alchemy')) {
+        selectedIndices.forEach(idx => {
+            const item = inventory[idx];
+            if (item && item.rarity.bonus >= 0.2) { // Rare+
+                if (Math.random() < 0.15) extraTickets += 5;
+            }
+        });
+        if (extraTickets > 0) showToast(`【炼金术】触发：获得 ${extraTickets} 张奖券！`, 'info');
+    }
+
+    setGold(prev => prev + baseValue);
+    setTickets(prev => prev + extraTickets);
+
+    const newInventory = inventory.filter((_, idx) => !selectedIndices.includes(idx));
+    setInventory(newInventory);
+    setIsRecycleMode(false);
+    setSelectedIndices([]);
+    // 回收不刷新 activePools, 保持静止
+  };
+
+  const toggleSubmitMode = () => {
+    if (pendingItem || selectionMode) return;
+    if (isSubmitMode) {
+      setIsSubmitMode(false);
+      setSelectedIndices([]);
+    } else {
+      setIsSubmitMode(true);
+      setIsRecycleMode(false); 
+      setSelectedSlot(null); 
+    }
+  };
+
+  const toggleRecycleMode = () => {
+    if (pendingItem || selectionMode) return;
+    if (isRecycleMode) {
+      setIsRecycleMode(false);
+      setSelectedIndices([]);
+    } else {
+      setIsRecycleMode(true);
+      setIsSubmitMode(false); 
+      setSelectedSlot(null);
+    }
+  };
+
+  // --- Render Functions (Updated to use <skill.Icon />) ---
+
+  const renderInventorySlot = (idx, isPendingSlot = false) => {
+    let item;
+    if (isPendingSlot) {
+        item = pendingItem;
+    } else {
+        item = inventory[idx];
+    }
+
+    const isPickedUp = selectedSlot === idx && !isPendingSlot;
+    const isTarget = (!isPendingSlot && selectedSlot !== null && !isPickedUp) || (!isPendingSlot && pendingItem);
+    
+    const maxReqBonus = maxRequirementRarityMap[item?.name];
+    const isNeeded = maxReqBonus !== undefined;
+    const isMaxSatisfied = isNeeded && item && item.rarity.bonus >= maxReqBonus;
+
+    const isMultiSelectMode = isSubmitMode || isRecycleMode;
+    const isSelected = isMultiSelectMode && !isPendingSlot && selectedIndices.includes(idx);
+    const isTradeInMode = selectionMode?.type === 'trade_in';
+    const isHovered = hoveredSlotIndex === idx && !isPendingSlot;
+    let actionType = null; 
+
+    // Merge/Upgrade hint logic ...
+    const canSynthesize = currentStageConfig.mechanics.synthesis;
+
+    const showPassiveHint = canSynthesize && !isMultiSelectMode && !isTradeInMode && selectedSlot === null && item && !item.sterile && item.rarity.id !== 'mythic' && (
+        (!isPendingSlot && (
+            inventory.some((other, otherIdx) => otherIdx !== idx && other && !other.sterile && other.name === item.name && other.rarity.id === item.rarity.id) ||
+            (pendingItem && !pendingItem.sterile && pendingItem.name === item.name && pendingItem.rarity.id === item.rarity.id)
+        )) ||
+        (isPendingSlot && inventory.some(invItem => invItem && !invItem.sterile && invItem.name === item.name && invItem.rarity.id === item.rarity.id))
+    );
+
+    if (!isMultiSelectMode && !isTradeInMode && isHovered && isTarget) {
+      if (pendingItem) {
+        if (canSynthesize && item && !item.sterile && !pendingItem.sterile && pendingItem.name === item.name && pendingItem.rarity.id === item.rarity.id && pendingItem.rarity.id !== 'mythic') {
+          actionType = 'synthesize'; 
+        } else {
+          actionType = 'replace'; 
+        }
+      } else if (typeof selectedSlot === 'number' && item) {
+        const sourceItem = inventory[selectedSlot];
+        if (canSynthesize && sourceItem.name === item.name && !sourceItem.sterile && !item.sterile && sourceItem.rarity.id === item.rarity.id && sourceItem.rarity.id !== 'mythic') {
+          actionType = 'synthesize';
+        } else {
+          actionType = 'swap';
+        }
+      } else if (selectedSlot !== null) {
+        actionType = 'move';
+      }
+    }
+
+    return (
+      <button
+        key={isPendingSlot ? 'pending' : idx}
+        onClick={() => !isPendingSlot && handleSlotClick(idx)}
+        disabled={(isMultiSelectMode && !item) || (isTradeInMode && (!item || item.isMainlineItem)) || isPendingSlot} 
+        onMouseEnter={() => {
+          if (item && !isPendingSlot) setHoveredItemName(item.name);
+          if (!isPendingSlot) setHoveredSlotIndex(idx);
+        }}
+        onMouseLeave={() => {
+          setHoveredItemName(null);
+          setHoveredSlotIndex(null);
+        }}
+        className={`
+          relative w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-xl border-2 flex flex-col items-center justify-center gap-1
+          transition-all duration-200 overflow-visible shrink-0
+          ${item 
+            ? `${item.rarity.color} ${item.rarity.shadow} shadow-sm` 
+            : 'bg-slate-50 border-dashed border-slate-200'
+          }
+          ${!isMultiSelectMode && !isTradeInMode && isPickedUp ? '-translate-y-4 scale-110 z-10 shadow-xl ring-2 ring-blue-400' : ''}
+          ${!isMultiSelectMode && !isTradeInMode && isTarget && pendingItem && !isPendingSlot ? 'animate-pulse ring-2 ring-red-400 cursor-pointer hover:bg-red-50' : ''}
+          ${!isMultiSelectMode && !isTradeInMode && isTarget && !pendingItem && !isPendingSlot ? 'hover:border-blue-300 cursor-pointer' : ''}
+          ${!isMultiSelectMode && actionType === 'synthesize' ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''}
+          ${!isMultiSelectMode && actionType === 'swap' ? 'hover:scale-105' : ''}
+
+          ${isMultiSelectMode && item && !isPendingSlot ? 'cursor-pointer hover:scale-105' : ''}
+          ${isSelected && isSubmitMode ? 'border-blue-600 bg-blue-50 border-2 z-10' : ''}
+          ${isSelected && isRecycleMode ? 'border-amber-600 bg-amber-50 border-2 z-10' : ''}
+          ${isMultiSelectMode && !isSelected && item && !isPendingSlot ? 'opacity-70 hover:opacity-100 grayscale-[0.3]' : ''}
+        `}
+      >
+        {item && (
+          <div className={`flex flex-col items-center justify-center w-full h-full ${item.sterile ? 'grayscale opacity-70' : ''}`}>
+            <span className="text-2xl lg:text-3xl filter drop-shadow-sm">{item.icon}</span>
+            <span className="text-[10px] font-bold leading-none truncate max-w-full px-1">{item.name}</span>
+            {item.rarity.bonus > 0 && (
+              <div className="absolute top-0 right-0 p-0.5 bg-white/50 rounded-bl-lg">
+                <Star size={8} fill="currentColor" className={item.rarity.color.split(' ')[2]} />
+              </div>
+            )}
+          </div>
+        )}
+        
+        {item && item.sterile && (
+          <div className="absolute bottom-0 left-0 p-0.5 bg-gray-800/80 rounded-tr-lg text-white z-10 text-[9px] px-1 font-bold">
+            绝育的
+          </div>
+        )}
+
+        {isSelected && (
+            <div className={`absolute -top-2 -right-2 text-white rounded-full p-1 shadow-md z-20 animate-in zoom-in ${isRecycleMode ? 'bg-amber-600' : 'bg-blue-600'}`}>
+              {isRecycleMode ? <Trash2 size={16}/> : <Check size={16} strokeWidth={4} />}
+            </div>
+        )}
+
+        {item && isNeeded && (
+          <div className={`absolute -bottom-1 -right-1 text-white rounded-full p-0.5 shadow-md border border-white z-10 ${isMaxSatisfied ? 'bg-green-500' : 'bg-slate-400'}`}>
+              <Check size={14} strokeWidth={4} />
+          </div>
+        )}
+
+        {showPassiveHint && (
+          <div className="absolute -top-1.5 -left-1.5 bg-white text-yellow-600 rounded-full p-[2px] shadow-sm border border-yellow-200 z-10 animate-bounce">
+              <ChevronsUp size={18} strokeWidth={4} />
+          </div>
+        )}
+        
+        {!isMultiSelectMode && !isTradeInMode && actionType === 'replace' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-500/90 rounded-lg transition-opacity z-10 animate-in fade-in">
+            <div className="flex flex-col items-center text-white">
+               <ArrowLeftRight size={24} />
+               <span className="text-xs font-bold">回收+{item?.rarity.recycleValue}</span>
+            </div>
+          </div>
+        )}
+        {!isMultiSelectMode && !isTradeInMode && actionType === 'synthesize' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-400/80 rounded-lg transition-opacity z-10 backdrop-blur-[1px] animate-pulse">
+             <ChevronsUp size={36} className="text-white drop-shadow-md" />
+             <span className="text-white text-xs font-black uppercase tracking-wider">升级</span>
+          </div>
+        )}
+        {!isMultiSelectMode && !isTradeInMode && actionType === 'swap' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-blue-500/40 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
+             <ArrowLeftRight size={32} className="text-white drop-shadow-md" />
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  const renderOrderCard = (order, idx, isMainline = false) => {
+      const satisfiedInfo = satisfiableOrders.find(so => so.isMainline === isMainline && so.index === (isMainline ? -1 : idx));
+      const isWillComplete = !!satisfiedInfo;
+      const finalReward = satisfiedInfo ? satisfiedInfo.finalReward : order.baseReward;
+      const refreshEnabled = currentStageConfig.mechanics.refresh;
+
+      return (
+        <div 
+        key={order.id} 
+        onClick={() => handleOrderClick(idx, isMainline)}
+        className={`relative w-full text-left group border-2 rounded-xl p-3 transition-all duration-300
+            ${isMainline 
+                ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200 shadow-md mb-4' 
+                : 'border-white bg-white shadow-sm'
+            }
+            ${isWillComplete
+                ? 'border-yellow-400 bg-yellow-50 shadow-md transform scale-[1.02] ring-2 ring-yellow-200' 
+                : ''
+            }
+            ${isSubmitMode ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : 'cursor-default'}
+            ${pendingItem ? 'opacity-50' : ''} 
+        `}
+        >
+            {isMainline && (
+                 <div className="absolute -top-3 left-3 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 z-20">
+                    <Crown size={10} /> 主线任务 {mainlineProgress + 1}/5
+                 </div>
+            )}
+
+            {!pendingItem && !isSubmitMode && !isRecycleMode && !selectionMode && !isMainline && refreshEnabled && (
+                <div
+                onClick={(e) => { e.stopPropagation(); handleRefreshSingleOrder(idx); }}
+                className={`absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-150
+                    ${order.remainingRefreshes <= 0 
+                        ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                        : 'bg-orange-100 text-orange-600 shadow-md cursor-pointer hover:bg-orange-200 active:translate-y-1 active:shadow-none'
+                    }
+                `}
+                title={`刷新订单 (剩余${order.remainingRefreshes}次)`}
+                >
+                <RefreshCw size={14} /> 
+                <span className="absolute -bottom-1 -right-1 bg-white text-[9px] font-black text-slate-600 px-1 rounded-full shadow-sm border border-slate-100 leading-none min-w-[14px] text-center">
+                    {order.remainingRefreshes}
+                </span>
+                </div>
+            )}
+            
+            <div className="flex justify-between items-start mb-2 mt-1">
+                <div className="flex items-center gap-2">
+                {isWillComplete ? (
+                    <div className="flex items-center gap-1 animate-pulse">
+                        {order.rewardType !== 'none' && (
+                            <>
+                             <span className="text-xs font-bold text-slate-400 line-through">{order.baseReward}</span>
+                             <span className={`text-sm font-black px-2 py-0.5 rounded flex items-center gap-1 ${order.rewardType === 'gold' ? 'text-yellow-600 bg-yellow-100' : 'text-purple-600 bg-purple-100'}`}>
+                               <Sparkles size={12}/> {finalReward} {order.rewardType === 'gold' ? <Coins size={12}/> : <Ticket size={12}/>}
+                             </span>
+                            </>
+                        )}
+                        {order.rewardType === 'none' && (
+                             <span className="text-xs font-black text-purple-600 bg-purple-100 px-2 py-0.5 rounded flex items-center gap-1">
+                                 <FastForward size={12} fill="currentColor" /> 主线进度 +1
+                             </span>
+                        )}
+                    </div>
+                ) : (
+                    order.rewardType !== 'none' ? (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1
+                        ${order.rewardType === 'gold' ? 'bg-yellow-400 text-yellow-900' : 'bg-purple-400 text-white'}
+                        `}>
+                        {order.baseReward} {order.rewardType === 'gold' ? <Coins size={12}/> : <Ticket size={12}/>}
+                        </span>
+                    ) : (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                            完成以推进剧情
+                        </span>
+                    )
+                )}
+                </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 mb-2">
+                {order.requirements.map((req, rIdx) => {
+                let matchedItem = null;
+                
+                if (isSubmitMode) {
+                    const selectedCandidates = selectedIndices
+                        .map(idx => inventory[idx])
+                        .filter(item => item && item.name === req.name);
+                    if (selectedCandidates.length > 0) {
+                        selectedCandidates.sort((a, b) => b.rarity.bonus - a.rarity.bonus);
+                        matchedItem = selectedCandidates[0];
+                    }
+                }
+
+                if (!matchedItem) {
+                    const candidates = inventory.filter(i => i.name === req.name);
+                    candidates.sort((a, b) => b.rarity.bonus - a.rarity.bonus);
+                    matchedItem = candidates[0];
+                }
+                
+                const hasItem = !!matchedItem;
+                const isQualitySatisfied = matchedItem && matchedItem.rarity.bonus >= req.requiredRarity.bonus;
+                const isSubmitted = isSubmitMode && selectedItemNames.includes(req.name); 
+                
+                // 修正：高亮逻辑加入 hoveredPoolItemNames 检查
+                // 仅当：
+                // 1. 有奖池被悬浮
+                // 2. 奖池ID匹配
+                // 3. 不是主线物品需求
+                // 4. 且该物品名称确实存在于当前被截断的奖池中
+                const isPoolHighlighted = hoveredPoolId && req.poolId === hoveredPoolId && !req.isMainlineItem && hoveredPoolItemNames.includes(req.name);
+                const isItemHighlighted = hoveredItemName && req.name === hoveredItemName;
+                const borderStyle = hasItem ? 'border-solid' : 'border-dashed';
+                let bgColorClass = 'bg-slate-50';
+                let iconFilterClass = 'grayscale opacity-50';
+                let textColorClass = 'text-slate-400';
+                
+                if (hasItem && isQualitySatisfied) {
+                    bgColorClass = matchedItem.rarity.color; 
+                    iconFilterClass = ''; 
+                    textColorClass = 'text-slate-700';
+                } else if (hasItem && !isQualitySatisfied) {
+                    bgColorClass = 'bg-slate-50'; 
+                    iconFilterClass = 'grayscale opacity-50'; 
+                    textColorClass = 'text-slate-500';
+                }
+
+                const borderColorClass = hasItem ? matchedItem.rarity.color.split(' ')[0] : 'border-slate-300';
+
+                return (
+                    <div key={rIdx} className={`
+                        relative flex items-center gap-1 text-sm border-2 rounded px-2 py-1 transition-all duration-200
+                        ${borderStyle} ${borderColorClass} ${bgColorClass} ${textColorClass}
+                        ${isSubmitted ? 'ring-2 ring-blue-500 shadow-md transform scale-105' : ''}
+                        ${(isPoolHighlighted || isItemHighlighted) && !isSubmitMode ? 'scale-110 z-30 shadow-xl' : ''}
+                    `}>
+                    <div className={`w-2 h-2 rounded-full ${req.requiredRarity.dotColor} shadow-sm border border-white/50 shrink-0`} title={`需要: ${req.requiredRarity.name}`}></div>
+                    <span className={`${iconFilterClass}`}>{req.icon}</span>
+                    <span className={`font-bold ${iconFilterClass}`}>{req.name}</span>
+                    {isSubmitted && isQualitySatisfied && (
+                        <div className="absolute -top-2 -right-2 bg-blue-500 text-white rounded-full p-0.5 shadow">
+                            <Check size={10} strokeWidth={4} />
+                        </div>
+                    )}
+                    </div>
+                );
+                })}
+            </div>
+        </div>
+      );
+  };
+
+  return (
+    <div className="h-screen w-full bg-slate-50 text-slate-800 font-sans selection:bg-blue-100 overflow-hidden flex flex-col animate-in fade-in duration-500 relative">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      
+      {/* 技能选择弹窗 */}
+      {skillSelectionCandidates && (
+          <SkillSelectionModal 
+              candidates={skillSelectionCandidates} 
+              onSelect={handleSkillSelect}
+              currentSkills={skills}
+              onReplace={handleSkillReplace}
+          />
+      )}
+
+      <div className="w-full max-w-7xl mx-auto h-full flex flex-col shadow-2xl bg-white border-x border-slate-200 relative">
+        
+        <header className="p-4 bg-slate-800 text-white flex justify-between items-center shadow-md z-20 shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 text-yellow-400">
+              <Coins size={20} />
+              <span className="text-xl font-bold">{gold}</span>
+            </div>
+            <div className="flex items-center gap-2 text-purple-300">
+              <Ticket size={20} />
+              <span className="text-xl font-bold">{tickets}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+             {/* Mainline Progress Indicator */}
+             <div className="flex items-center gap-1 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600">
+                <Flag size={14} className="text-purple-400"/>
+                <span className="text-xs font-bold text-slate-300">{currentStageConfig.name}</span>
+                <span className="text-sm font-black text-purple-200">{mainlineProgress}/5</span>
+             </div>
+
+            <div className="flex flex-col items-end">
+              <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">累计抽奖</span>
+              <span className="text-xl font-bold">{drawCount} 次</span>
+            </div>
+            
+            <div className="flex items-center gap-2 bg-slate-700 rounded-lg p-1">
+               <button 
+                  onClick={onReset}
+                  title="重置进度"
+                  className="p-1.5 hover:bg-slate-600 rounded transition-colors text-red-300 hover:text-red-100"
+                >
+                  <Power size={20} />
+                </button>
+                <div className="w-[1px] h-5 bg-slate-600"></div>
+                <button 
+                  onClick={onOpenSettings}
+                  title="配置游戏"
+                  className="p-1.5 hover:bg-slate-600 rounded transition-colors text-slate-300 hover:text-white"
+                >
+                  <Settings size={20} />
+                </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col lg:flex-row overflow-hidden pb-[400px] lg:pb-[400px]">
+
+          <section className={`
+             flex-none lg:w-1/3 p-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50/50 transition-all
+             ${selectionMode?.type === 'targeted' ? 'hidden md:block md:w-1/4' : ''}
+          `}>
+            <div className="flex justify-between items-center mb-4 sticky top-0 bg-slate-50/95 p-2 rounded-lg z-10 backdrop-blur-sm">
+              <h2 className="text-sm font-bold text-slate-500 uppercase flex items-center gap-1">
+                <Package size={16} /> 当前订单
+              </h2>
+              {/* 修改：刷新按钮样式优化 & 阶段锁 */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleRefreshAllOrders(); }}
+                disabled={!!pendingItem || gold < config.global.refreshCost || isSubmitMode || isRecycleMode || !!selectionMode || !currentStageConfig.mechanics.refresh}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-200 text-sm shadow-sm
+                  ${pendingItem || gold < config.global.refreshCost || isSubmitMode || isRecycleMode || selectionMode || !currentStageConfig.mechanics.refresh
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200 ring-1 ring-orange-300 hover:ring-2 hover:scale-105'}`}
+              >
+                {!currentStageConfig.mechanics.refresh ? <Lock size={14}/> : <RotateCcw size={14} />} 
+                <span>{currentStageConfig.mechanics.refresh ? `刷新普通 (-${config.global.refreshCost})` : '刷新未解锁'}</span> 
+                {currentStageConfig.mechanics.refresh && <Coins size={12}/>}
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              {/* Render Mainline Order First */}
+              {mainlineOrder && renderOrderCard(mainlineOrder, -1, true)}
+
+              {/* Render Normal Orders */}
+              {orders.map((order, idx) => renderOrderCard(order, idx, false))}
+            </div>
+          </section>
+
+          <section className="flex-1 p-4 lg:p-8 flex flex-col overflow-y-auto relative">
+             <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm font-bold text-slate-500 uppercase flex items-center gap-1">
+                <RefreshCw size={16} /> 抽取物品
+              </h2>
+              <span className="text-xs text-slate-400">点击卡片抽奖</span>
+            </div>
+            
+            <div className={`
+                flex flex-col gap-4
+                transition-opacity duration-300
+                ${pendingItem || isSubmitMode || isRecycleMode || selectionMode ? 'opacity-30 pointer-events-none' : 'opacity-100'}
+            `}>
+              {activePools.map((pool) => {
+                const relevantRequirements = pool.type === 'mainline' 
+                    ? [] // 主线池不显示普通订单的需求匹配提示
+                    : orders.flatMap(o => o.requirements)
+                        .filter(req => pool.items.some(poolItem => poolItem.name === req.name));
+                
+                let canAfford = false;
+                let finalCost = pool.cost;
+                // 计算折扣后价格
+                if (pool.currency === 'gold' && hasSkill('calculated') && gold < 10) {
+                     finalCost = Math.max(1, finalCost - 2);
+                }
+                if (pool.currency === 'gold' && hasSkill('vip_discount') && (pool.affixKey === 'precise' || pool.affixKey === 'targeted')) {
+                     finalCost = Math.max(0, finalCost - 1);
+                }
+
+                if (pool.type === 'mainline') {
+                   canAfford = tickets >= finalCost;
+                } else {
+                   canAfford = pool.currency === 'gold' ? gold >= finalCost : tickets >= finalCost;
+                }
+
+                // 2025-11-25 动态计算主线池填充文案
+                // 使用 Stage Id 更稳健
+                const currentStageId = config.stages[mainlineProgress]?.id;
+                let fillerRarityName = '普通';
+                if (currentStageId === 1) fillerRarityName = '优秀';
+                else if (currentStageId === 2) fillerRarityName = '稀有';
+                else if (currentStageId >= 3) fillerRarityName = '史诗';
+
+                return (
+                  <button
+                    key={pool.id}
+                    onClick={() => handleDraw(pool)}
+                    onMouseEnter={() => {
+                        if (pool.type !== 'mainline') {
+                            setHoveredPoolId(pool.originalId || pool.id);
+                            // 修正：悬浮时记录当前池子实例内实际存在的物品
+                            setHoveredPoolItemNames(pool.items.map(i => i.name));
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        setHoveredPoolId(null);
+                        setHoveredPoolItemNames([]);
+                    }}
+                    disabled={!canAfford}
+                    className={`
+                      relative flex flex-row items-center rounded-2xl border-b-8 transition-transform active:scale-95 hover:brightness-95 hover:-translate-y-1
+                      ${pool.color} p-4 md:p-6 min-h-[140px] text-left overflow-hidden
+                      ${!canAfford ? 'opacity-50 grayscale cursor-not-allowed' : ''}
+                    `}
+                  >
+                    <div className="absolute top-3 right-3 z-10 text-base font-black bg-white/95 text-slate-800 px-4 py-1.5 rounded-full shadow-lg border border-slate-100 flex items-center gap-1">
+                         {finalCost === 0 ? '免费' : finalCost} 
+                         {pool.currency === 'gold' && <Coins size={14} className="fill-yellow-500 text-yellow-600"/>} 
+                         {pool.currency === 'ticket' && <Ticket size={14} className="fill-purple-300 text-purple-600"/>}
+                         {finalCost < pool.cost && (
+                             <span className="text-[10px] text-red-500 line-through ml-1 opacity-60">{pool.cost}</span>
+                         )}
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center w-1/3 border-r border-black/10 pr-4 mr-4 shrink-0">
+                      <span className="text-5xl lg:text-6xl filter drop-shadow-sm mb-2">{pool.icon}</span>
+                      <span className="text-lg lg:text-xl font-black leading-tight tracking-tight">{pool.name}</span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center h-full min-w-0">
+                      {pool.type === 'mainline' ? (
+                        <div className="flex flex-col gap-1 text-sm font-bold opacity-80 mt-6">
+                           <p>🔥 {(config.global.mainlineDropRate * 100).toFixed(0)}% 主线道具: {pool.targetItem?.name}</p>
+                           {/* 动态显示的品质提示 */}
+                           <p>✨ 90% 随机{fillerRarityName} / 10% 随机传说</p>
+                           <p className="text-xs mt-1">集齐主线道具以通关游戏！</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 mt-4">
+                           {pool.affix && (
+                             <div className="flex flex-col mb-2">
+                                <div className="font-bold text-base flex items-center justify-between leading-tight">
+                                   <span>{pool.affix.name}</span>
+                                </div>
+                                <div className="text-xs leading-snug text-slate-700 font-medium mt-1">{pool.affix.desc}</div>
+                             </div>
+                           )}
+                           
+                           {relevantRequirements.length > 0 ? (
+                             <div className="flex flex-wrap gap-2 mt-1">
+                               {relevantRequirements.map((req, i) => {
+                                  let matchedItem = null;
+                                  const candidates = inventory.filter(invItem => invItem.name === req.name);
+                                  candidates.sort((a, b) => b.rarity.bonus - a.rarity.bonus);
+                                  matchedItem = candidates[0];
+                                  
+                                  const hasItem = !!matchedItem;
+                                  const isQualitySatisfied = matchedItem && matchedItem.rarity.bonus >= req.requiredRarity.bonus;
+
+                                  const borderStyle = hasItem ? 'border-solid' : 'border-dashed';
+                                  let bgColorClass = 'bg-white/80'; 
+                                  let iconFilterClass = 'grayscale opacity-50';
+                                  let textColorClass = 'text-slate-500';
+                                  
+                                  if (hasItem && isQualitySatisfied) {
+                                      bgColorClass = 'bg-white'; 
+                                      iconFilterClass = ''; 
+                                      textColorClass = 'text-slate-800';
+                                  } else if (hasItem && !isQualitySatisfied) {
+                                      bgColorClass = 'bg-white/50';
+                                      iconFilterClass = 'grayscale opacity-50';
+                                      textColorClass = 'text-slate-500';
+                                  }
+
+                                  const borderColorClass = hasItem ? (matchedItem.rarity.color.split(' ')[0]) : 'border-slate-400/50';
+
+                                  return (
+                                    <div key={i} className={`relative flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold border-2 shadow-sm ${borderStyle} ${borderColorClass} ${bgColorClass} ${textColorClass}`}>
+                                      <div className={`w-2 h-2 rounded-full ${req.requiredRarity.dotColor} shadow-sm border border-white/50 shrink-0`}></div>
+                                      <span className={`${iconFilterClass}`}>{req.icon}</span>
+                                      <span className={`${iconFilterClass}`}>{req.name}</span>
+                                      {hasItem && isQualitySatisfied && <div className="bg-green-500 text-white rounded-full p-[1px] ml-1"><Check size={8} strokeWidth={4} /></div>}
+                                    </div>
+                                  );
+                               })}
+                             </div>
+                           ) : (
+                               pool.items.length > 0 && !pool.type === 'mainline' && (
+                                   <div className="flex flex-wrap gap-2 mt-1 opacity-50">
+                                      {pool.items.slice(0, 3).map(item => (
+                                          <div key={item.name} className="text-xs bg-black/5 px-2 py-1 rounded">{item.icon} {item.name}</div>
+                                      ))}
+                                      {pool.items.length > 3 && <span className="text-xs self-center">...</span>}
+                                   </div>
+                               )
+                           )}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectionMode && selectionMode.type !== 'trade_in' && (
+              <div className="absolute inset-0 bg-white/90 z-40 flex flex-col items-center justify-center p-4 animate-in fade-in">
+                  <h3 className="text-xl font-bold text-center mb-6">
+                    {selectionMode.type === 'precise' ? '精准抽取：二选一 (不可取消)' : '有的放矢：请选择你想要的'}
+                  </h3>
+                  
+                  <div className={`
+                    grid gap-4 w-full max-w-2xl
+                    ${selectionMode.type === 'precise' ? 'grid-cols-2' : 'grid-cols-3 md:grid-cols-5'}
+                  `}>
+                      {selectionMode.items.map((item, idx) => (
+                        <button 
+                          key={idx}
+                          onClick={() => handleSelectionSelect(item)}
+                          onMouseEnter={() => setHoveredItemName(item.name)}
+                          onMouseLeave={() => setHoveredItemName(null)}
+                          className={`
+                             rounded-xl border-4 flex flex-col items-center justify-center gap-2 transition-all hover:scale-105 hover:shadow-lg aspect-square
+                             ${item.rarity ? `${item.rarity.color} shadow-sm` : 'border-slate-200 bg-slate-50 hover:border-blue-400'}
+                          `}
+                        >
+                          <span className="text-4xl">{item.icon}</span>
+                          <span className="text-xs font-bold">{item.name}</span>
+                          {item.rarity && (
+                             <div className={`text-[10px] px-1 rounded ${item.rarity.color.split(' ')[2]} bg-white/50 font-bold`}>
+                                {item.rarity.name}
+                             </div>
+                          )}
+                        </button>
+                      ))}
+                  </div>
+
+                  {selectionMode.type === 'targeted' && (
+                    <button 
+                       onClick={handleSelectionCancel}
+                       className="mt-8 px-8 py-2 bg-slate-200 text-slate-600 font-bold rounded-full hover:bg-slate-300"
+                    >
+                      取消
+                    </button>
+                  )}
+              </div>
+            )}
+          </section>
+
+        </main>
+
+        <footer className={`
+            absolute bottom-0 w-full p-4 border-t-2 border-slate-200 bg-white/95 backdrop-blur shadow-[0_-8px_30px_rgba(0,0,0,0.1)] z-30 transition-colors duration-300 
+            ${pendingItem ? 'bg-red-50/95 border-red-200' : ''}
+            ${isSubmitMode ? 'bg-blue-50/95 border-blue-200' : ''}
+            ${isRecycleMode ? 'bg-amber-50/95 border-amber-200' : ''}
+            ${selectionMode?.type === 'trade_in' ? 'bg-purple-50/95 border-purple-200' : ''}
+        `}>
+          
+          {/* 技能栏 (New) */}
+          <div className="flex items-center justify-center gap-4 mb-2 pb-2 border-b border-slate-100 relative">
+             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest absolute left-0 top-1/2 -translate-y-1/2 hidden md:block">被动技能</div>
+             <div className="flex gap-4">
+                 {[0, 1, 2].map(i => {
+                     const skillId = skills[i];
+                     const skill = SKILL_DEFINITIONS.find(s => s.id === skillId);
+                     const SkillIcon = skill?.Icon || Zap;
+                     return (
+                         <div key={i} className="flex flex-col items-center gap-1">
+                             <div className="group relative w-12 h-12 rounded-full border-2 border-slate-200 bg-slate-100 flex items-center justify-center transition-all hover:scale-110">
+                                 {skill ? (
+                                     <div className={`w-full h-full rounded-full flex items-center justify-center ${skill.color}`}>
+                                         <SkillIcon size={18} />
+                                         {/* Tooltip */}
+                                         <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-xs p-3 rounded-xl w-48 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-left">
+                                             <div className="font-bold mb-1 flex items-center gap-2"><SkillIcon size={14} /> {skill.name}</div>
+                                             <div className="opacity-90">{skill.desc}</div>
+                                         </div>
+                                     </div>
+                                 ) : (
+                                     <div className="text-slate-300"><Zap size={18} /></div>
+                                 )}
+                                 <div className="absolute -top-1 -right-1 text-[10px] bg-slate-300 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">{i+1}</div>
+                             </div>
+                             {/* 技能名称 */}
+                             <span className="text-[10px] font-bold text-slate-500 max-w-[64px] truncate text-center leading-tight">
+                                 {skill ? skill.name : '空槽位'}
+                             </span>
+                         </div>
+                     );
+                 })}
+             </div>
+          </div>
+
+          {/* 稀有度加成示意图 (Restored) */}
+          <div className="flex items-center justify-center gap-4 mb-2 pb-2 border-b border-slate-100 flex-wrap">
+             {config.rarity.slice(1).map(rarity => {
+               // 阶段未开放的稀有度，显示为锁定或不显示
+               const weights = currentStageConfig.rarityWeights;
+               if (weights[rarity.id] === 0) return null;
+
+               return (
+               <div key={rarity.id} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-full shadow-sm border border-slate-100 animate-in fade-in">
+                  <Star size={12} fill="currentColor" className={rarity.starColor} />
+                  <span>{rarity.name} +{Math.round(rarity.bonus * 100)}%</span>
+               </div>
+             )})}
+          </div>
+
+          <div className="flex justify-between items-center mb-2 px-2 max-w-3xl mx-auto">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">背包栏位 ({inventory.length}/{maxInventorySize})</h2>
+            {selectedSlot !== null && !pendingItem && !isSubmitMode && !isRecycleMode && !selectionMode && (
+               <span className="text-xs font-bold text-blue-500 animate-pulse bg-blue-50 px-2 py-1 rounded flex items-center gap-2">
+                 <Hand size={14}/> 整理模式
+               </span>
+            )}
+            {isSubmitMode && (
+               <span className="text-xs font-bold text-blue-600 animate-pulse flex items-center gap-1">
+                 <Layers size={14}/> 提交模式: 点击订单卡片可一键选择
+               </span>
+            )}
+            {isRecycleMode && (
+               <span className="text-xs font-bold text-amber-600 animate-pulse flex items-center gap-1">
+                 <Trash2 size={14}/> 回收模式: 选择道具换取金币
+               </span>
+            )}
+            {selectionMode?.type === 'trade_in' && (
+               <span className="text-xs font-bold text-purple-600 animate-pulse flex items-center gap-1">
+                 <Repeat size={14}/> 以旧换新: 请点击选择一个物品消耗
+               </span>
+            )}
+          </div>
+
+          <div className="absolute bottom-4 right-4 md:right-10 lg:right-20 flex gap-2 z-50">
+             {!isSubmitMode && !isRecycleMode && !pendingItem && !selectionMode && (
+               <>
+                 <button onClick={toggleRecycleMode} className="flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-200 font-bold py-3 px-6 rounded-full shadow-lg hover:bg-amber-200 transition-transform active:scale-95">
+                   <Trash2 size={18} /> 回收
+                 </button>
+                 <button onClick={toggleSubmitMode} className="flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-6 rounded-full shadow-xl hover:bg-slate-700 transition-transform active:scale-95">
+                   <Layers size={18} /> 出牌
+                 </button>
+               </>
+             )}
+
+             {isSubmitMode && (
+               <>
+                 <button onClick={toggleSubmitMode} className="bg-white border border-slate-300 text-slate-600 font-bold py-2 px-4 rounded-full shadow-sm hover:bg-slate-50">取消</button>
+                 <button onClick={handleConfirmSubmission} disabled={selectedIndices.length === 0} className={`flex items-center gap-2 font-bold py-2 px-6 rounded-full shadow-lg ${selectedIndices.length > 0 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                   <Send size={16} /> 确认出牌
+                 </button>
+               </>
+             )}
+
+             {isRecycleMode && (
+               <>
+                 <button onClick={toggleRecycleMode} className="bg-white border border-slate-300 text-slate-600 font-bold py-2 px-4 rounded-full shadow-sm hover:bg-slate-50">取消</button>
+                 <button onClick={handleConfirmRecycle} disabled={selectedIndices.length === 0} className={`flex items-center gap-2 font-bold py-2 px-6 rounded-full shadow-lg ${selectedIndices.length > 0 ? 'bg-amber-600 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                   <Trash2 size={16} /> 确认回收 (+{totalRecycleValue}金币)
+                 </button>
+               </>
+             )}
+             
+             {selectionMode?.type === 'trade_in' && (
+                <button onClick={() => setSelectionMode(null)} className="bg-white border border-slate-300 text-slate-600 font-bold py-2 px-6 rounded-full shadow-sm hover:bg-slate-50">取消</button>
+             )}
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-4 justify-center items-center lg:items-end relative max-w-3xl mx-auto">
+             
+             <div className="flex flex-wrap gap-2 justify-center max-w-full">
+                {Array.from({ length: maxInventorySize }).map((_, i) => (
+                  <div key={i} className="flex-shrink-0">
+                    {renderInventorySlot(i)}
+                  </div>
+                ))}
+             </div>
+
+             {pendingItem && (
+                <div className="absolute right-0 bottom-full mb-4 lg:mb-0 lg:static lg:bottom-auto flex flex-col items-end lg:items-start gap-2 animate-in slide-in-from-right-4 fade-in duration-300 z-40 max-w-full">
+                  
+                  <div className="bg-white/95 backdrop-blur-md p-3 rounded-2xl border-2 border-red-200 shadow-2xl flex flex-col gap-2 max-w-[95vw] lg:max-w-xl">
+                      
+                      <div className="flex justify-between items-center border-b border-red-100 pb-2">
+                          <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
+                              <AlertCircle size={16} />
+                              <span>背包已满！待处理队列 ({pendingQueue.length + 1})</span>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                              按顺序处理
+                          </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                          <div className="flex flex-col gap-2 shrink-0 snap-center items-center p-2 bg-red-50 rounded-xl border border-red-100 min-w-[100px]">
+                              <div className="text-[10px] font-black text-red-500 bg-white px-2 py-0.5 rounded-full shadow-sm">当前处理</div>
+                              <div className="relative transform hover:scale-105 transition-transform">
+                                   {renderInventorySlot(0, true)}
+                              </div>
+                              <button
+                                  onClick={handleDiscardNew}
+                                  className="w-full flex items-center justify-center gap-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm"
+                              >
+                                  <X size={12} /> 
+                                  {pendingItem.rarity.recycleValue > 0 ? `回收 +${pendingItem.rarity.recycleValue}` : '丢弃'}
+                              </button>
+                          </div>
+
+                          {pendingQueue.map((qItem, idx) => (
+                              <div key={qItem.uid} className="flex flex-col gap-2 shrink-0 snap-center items-center opacity-60 grayscale-[0.3]">
+                                  <div className="text-[10px] font-bold text-slate-400 mt-2">#{idx + 1}</div>
+                                  <div className={`
+                                      relative w-16 h-16 rounded-xl border-2 flex flex-col items-center justify-center gap-1 shadow-sm bg-slate-50
+                                      ${qItem.rarity.color}
+                                  `}>
+                                      <span className="text-2xl filter drop-shadow-sm">{qItem.icon}</span>
+                                      <span className="text-[9px] font-bold leading-none truncate max-w-full px-1">{qItem.name}</span>
+                                      <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white/50"></div>
+                                  </div>
+                              </div>
+                          ))}
+                          
+                          {pendingQueue.length === 0 && (
+                              <div className="h-full flex items-center justify-center px-4 text-xs text-slate-300 font-medium italic">
+                                  队列空
+                              </div>
+                          )}
+                      </div>
+                  </div>
+                </div>
+              )}
+
+          </div>
+
+        </footer>
+
+        {modalContent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full flex flex-col items-center gap-4 text-center border-4 border-white transform scale-100 animate-in zoom-in-95 duration-200
+               ${modalContent.type === 'victory' ? 'ring-4 ring-yellow-400 bg-yellow-50' : ''}
+               ${modalContent.type === 'stage_up' ? 'ring-4 ring-blue-400 bg-blue-50' : ''}
+               ${modalContent.type !== 'victory' && modalContent.type !== 'stage_up' ? 'ring-4 ring-purple-200' : ''}
+            `}>
+              <h3 className="text-2xl font-black text-slate-800">{modalContent.title}</h3>
+              
+              {modalContent.type === 'stage_up' ? (
+                  <div className="flex flex-col items-center gap-4 py-4 w-full">
+                      <div className="text-4xl animate-bounce">{modalContent.item.icon}</div>
+                      <div className="w-full bg-white/50 rounded-xl p-4 border border-blue-200">
+                          <h4 className="font-bold text-blue-800 mb-3 text-left">解锁新内容：</h4>
+                          <ul className="text-left space-y-2">
+                              {modalContent.unlocks.map((text, idx) => (
+                                  <li key={idx} className="flex items-start gap-2 text-sm font-bold text-slate-600">
+                                      <Check size={16} className="text-green-500 mt-0.5 shrink-0" />
+                                      <span>{text}</span>
+                                  </li>
+                              ))}
+                          </ul>
+                      </div>
+                      <button 
+                        onClick={handleCloseModal}
+                        className="mt-4 bg-blue-600 text-white font-bold py-3 px-12 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95"
+                      >
+                        继续挑战
+                      </button>
+                  </div>
+              ) : (
+                  <>
+                    <div className={`w-32 h-32 rounded-2xl flex items-center justify-center text-6xl shadow-inner bg-slate-50 border-4 ${modalContent.item.rarity.color.split(' ')[0]}`}>
+                        <div className={`flex flex-col items-center ${modalContent.item.sterile ? 'grayscale opacity-70' : ''}`}>
+                        {modalContent.item.icon}
+                        </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                        <span className={`text-lg font-bold ${modalContent.item.rarity.starColor.replace('text-', 'text-')}`}>
+                        {modalContent.item.rarity.name} {modalContent.item.name}
+                        </span>
+                        <p className="text-slate-500 font-medium">{modalContent.message}</p>
+                    </div>
+
+                    {modalContent.type === 'victory' ? (
+                        <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-4 bg-yellow-500 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-yellow-600 transition-transform active:scale-95 animate-pulse"
+                        >
+                        再来一局
+                        </button>
+                    ) : (
+                        <button 
+                        onClick={handleCloseModal}
+                        className="mt-4 bg-slate-800 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-slate-700 transition-transform active:scale-95"
+                        >
+                        收下
+                        </button>
+                    )}
+                  </>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [config, setConfig] = useState(INITIAL_GAME_CONFIG);
+  const [gameId, setGameId] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [defaultResetConfirmOpen, setDefaultResetConfirmOpen] = useState(false);
+
+  // Dev tools state
+  const [devSkillsSelected, setDevSkillsSelected] = useState([]);
+  const [initialSkills, setInitialSkills] = useState([]);
+
+  const handleHardReset = () => {
+    setGameId(prev => prev + 1);
+    setInitialSkills([]); // Reset skills too
+    setResetConfirmOpen(false);
+  };
+
+  const handleResetDefaults = () => {
+    setConfig(INITIAL_GAME_CONFIG);
+    setDefaultResetConfirmOpen(false);
+  };
+
+  const handleExportConfig = () => {
+    const dataStr = JSON.stringify(config, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `order-game-config-${new Date().toISOString().slice(0,10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportConfig = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedConfig = JSON.parse(event.target.result);
+        if (importedConfig.rarity && importedConfig.pools && importedConfig.global && importedConfig.affixes) {
+          setConfig(importedConfig);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null;
+  };
+
+  return (
+    <>
+      <GameCore 
+        key={gameId} 
+        config={config} 
+        initialSkills={initialSkills}
+        onOpenSettings={() => setShowSettings(true)}
+        onReset={() => setResetConfirmOpen(true)}
+      />
+
+      {resetConfirmOpen && (
+        <ConfirmDialog 
+          title="重新开始游戏？"
+          message="确定要重新开始游戏吗？当前进度（金币、背包、技能）将丢失。"
+          onConfirm={handleHardReset}
+          onCancel={() => setResetConfirmOpen(false)}
+        />
+      )}
+      
+      {defaultResetConfirmOpen && (
+        <ConfirmDialog 
+          title="恢复默认配置？"
+          message="确定要将所有配置参数恢复为默认值吗？此操作不可撤销。"
+          onConfirm={handleResetDefaults}
+          onCancel={() => setDefaultResetConfirmOpen(false)}
+        />
+      )}
+
+      {showSettings && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in">
+             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+                <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                  <h3 className="text-xl font-black flex items-center gap-2 text-slate-700">
+                    <Settings size={24} /> 游戏配置 & 开发者工具
+                  </h3>
+                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-200 rounded-full">
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                  {/* 阶段参数配置 (新增) */}
+                  <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-emerald-500 pl-3">阶段稀有度配置 (概率: 0-1)</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-100 text-slate-500">
+                                <tr>
+                                    <th className="p-2 text-left">阶段名称</th>
+                                    <th className="p-2 text-center w-20">普通</th>
+                                    <th className="p-2 text-center w-20">优秀</th>
+                                    <th className="p-2 text-center w-20">稀有</th>
+                                    <th className="p-2 text-center w-20">史诗</th>
+                                    <th className="p-2 text-center w-20">传说</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {config.stages.map((stage, sIdx) => (
+                                    <tr key={stage.id} className="border-b hover:bg-slate-50">
+                                        <td className="p-2 font-bold">
+                                            <div className="flex flex-col">
+                                                <span>{stage.name}</span>
+                                                <span className="text-[10px] text-slate-400 font-normal">{stage.desc}</span>
+                                            </div>
+                                        </td>
+                                        {['common', 'uncommon', 'rare', 'epic', 'legendary'].map(rKey => (
+                                            <td key={rKey} className="p-2 text-center">
+                                                <input 
+                                                    type="number"
+                                                    step="0.05"
+                                                    min="0" max="1"
+                                                    className={`w-16 p-1 border rounded text-center font-mono ${stage.rarityWeights[rKey] > 0 ? 'bg-white font-bold' : 'bg-slate-50 text-slate-400'}`}
+                                                    value={stage.rarityWeights[rKey]}
+                                                    onChange={(e) => {
+                                                        const val = parseFloat(e.target.value);
+                                                        if (isNaN(val)) return;
+                                                        const newStages = [...config.stages];
+                                                        newStages[sIdx] = {
+                                                            ...newStages[sIdx],
+                                                            rarityWeights: {
+                                                                ...newStages[sIdx].rarityWeights,
+                                                                [rKey]: val
+                                                            }
+                                                        };
+                                                        setConfig({ ...config, stages: newStages });
+                                                    }}
+                                                />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                  </section>
+
+                  {/* 技能配置 */}
+                   <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-indigo-500 pl-3">技能配置 (勾选以启用掉落)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {SKILL_DEFINITIONS.map(skill => (
+                            <label key={skill.id} className="flex items-start gap-2 p-2 border rounded-lg hover:bg-slate-50 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={config.enabledSkillIds?.includes(skill.id)}
+                                    onChange={(e) => {
+                                        const current = config.enabledSkillIds || [];
+                                        let next;
+                                        if (e.target.checked) next = [...current, skill.id];
+                                        else next = current.filter(id => id !== skill.id);
+                                        setConfig({ ...config, enabledSkillIds: next });
+                                    }}
+                                    className="mt-1"
+                                />
+                                <div className="text-sm">
+                                    <div className="font-bold flex items-center gap-1"><skill.Icon size={14} /> {skill.name}</div>
+                                    <div className="text-xs text-slate-500">{skill.desc}</div>
+                                </div>
+                            </label>
+                        ))}
+                    </div>
+                  </section>
+
+                   {/* 开发者工具：直接添加技能 (新版多选) */}
+                   <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-red-500 pl-3">开发者工具: 直接获取技能 (实时生效)</h4>
+                    <div className="flex flex-col gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-slate-50">
+                            {SKILL_DEFINITIONS.map(s => {
+                                const isSelected = devSkillsSelected.includes(s.id);
+                                return (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => {
+                                            setDevSkillsSelected(prev => 
+                                                prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                                            );
+                                        }}
+                                        className={`
+                                            text-xs p-2 rounded border flex items-center gap-2 transition-all
+                                            ${isSelected ? 'bg-red-100 border-red-400 text-red-800 ring-1 ring-red-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-white'}
+                                        `}
+                                    >
+                                        <s.Icon size={14} />
+                                        <span className="font-bold truncate">{s.name}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => {
+                                    if (devSkillsSelected.length > 0) {
+                                        setInitialSkills(devSkillsSelected); // 直接覆盖模式
+                                        setDevSkillsSelected([]); 
+                                    }
+                                }}
+                                disabled={devSkillsSelected.length === 0}
+                                className={`
+                                    px-4 py-2 rounded-lg font-bold text-sm shadow transition-all
+                                    ${devSkillsSelected.length > 0 ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}
+                                `}
+                            >
+                                覆盖当前所有技能 ({devSkillsSelected.length}) - 不重启
+                            </button>
+                            <button 
+                                 onClick={() => setDevSkillsSelected([])}
+                                 className="px-3 py-2 text-slate-500 hover:text-slate-800 text-sm underline"
+                            >
+                                清空选择
+                            </button>
+                        </div>
+                    </div>
+                  </section>
+
+                   {/* 词缀设置 (恢复) */}
+                   <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-orange-500 pl-3">词缀参数配置</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 text-slate-500">
+                          <tr>
+                             <th className="p-2 text-left">词缀名称</th>
+                             <th className="p-2 text-left">出现权重</th>
+                             <th className="p-2 text-left">金币消耗</th>
+                             <th className="p-2 text-left">描述</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {config.affixes.map((affix, idx) => (
+                            <tr key={affix.id} className="border-b">
+                               <td className="p-2 font-bold">{affix.name}</td>
+                               <td className="p-2">
+                                  <input 
+                                    type="number" 
+                                    value={affix.weight}
+                                    onChange={(e) => {
+                                      const newAffixes = [...config.affixes];
+                                      newAffixes[idx] = { ...affix, weight: parseInt(e.target.value) || 0 };
+                                      setConfig({...config, affixes: newAffixes});
+                                    }}
+                                    className="border rounded w-20 px-1 py-0.5"
+                                  />
+                               </td>
+                               <td className="p-2">
+                                  <input 
+                                    type="number" 
+                                    value={affix.cost}
+                                    onChange={(e) => {
+                                      const newAffixes = [...config.affixes];
+                                      newAffixes[idx] = { ...affix, cost: parseInt(e.target.value) || 0 };
+                                      setConfig({...config, affixes: newAffixes});
+                                    }}
+                                    className="border rounded w-20 px-1 py-0.5"
+                                  />
+                               </td>
+                               <td className="p-2">
+                                  <input 
+                                    type="text" 
+                                    value={affix.desc}
+                                    onChange={(e) => {
+                                      const newAffixes = [...config.affixes];
+                                      newAffixes[idx] = { ...affix, desc: e.target.value };
+                                      setConfig({...config, affixes: newAffixes});
+                                    }}
+                                    className="border rounded w-full px-1 py-0.5 text-xs"
+                                  />
+                               </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  {/* 品质设置 (恢复) */}
+                  <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-purple-500 pl-3">品质参数</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 text-slate-500">
+                          <tr>
+                             <th className="p-2 text-left">品质名称</th>
+                             <th className="p-2 text-left">基础概率 (0-1)</th>
+                             <th className="p-2 text-left">加成倍率 (Bonus)</th>
+                             <th className="p-2 text-left">回收价值 (Gold)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {config.rarity.map((r, idx) => (
+                            <tr key={r.id} className="border-b">
+                               <td className="p-2 font-bold">{r.name}</td>
+                               <td className="p-2">
+                                  <input 
+                                    type="number" step="0.01" 
+                                    value={r.prob}
+                                    onChange={(e) => {
+                                      const newRarity = [...config.rarity];
+                                      newRarity[idx] = { ...r, prob: parseFloat(e.target.value) };
+                                      setConfig({...config, rarity: newRarity});
+                                    }}
+                                    className="border rounded w-20 px-1 py-0.5"
+                                  />
+                               </td>
+                               <td className="p-2">
+                                  <input 
+                                    type="number" step="0.1" 
+                                    value={r.bonus}
+                                    onChange={(e) => {
+                                      const newRarity = [...config.rarity];
+                                      newRarity[idx] = { ...r, bonus: parseFloat(e.target.value) };
+                                      setConfig({...config, rarity: newRarity});
+                                    }}
+                                    className="border rounded w-20 px-1 py-0.5"
+                                  />
+                               </td>
+                               <td className="p-2">
+                                  <input 
+                                    type="number" 
+                                    value={r.recycleValue}
+                                    onChange={(e) => {
+                                      const newRarity = [...config.rarity];
+                                      newRarity[idx] = { ...r, recycleValue: parseInt(e.target.value) };
+                                      setConfig({...config, rarity: newRarity});
+                                    }}
+                                    className="border rounded w-20 px-1 py-0.5"
+                                  />
+                               </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  {/* 奖池设置 (恢复) */}
+                  <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-green-500 pl-3">奖池权重</h4>
+                    <div className="space-y-4">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {config.pools.map((pool, idx) => (
+                             <div key={pool.id} className={`p-3 rounded-lg border flex items-center gap-3 ${pool.color}`}>
+                                <span className="text-2xl">{pool.icon}</span>
+                                <div className="flex-1">
+                                   <div className="font-bold">{pool.name}</div>
+                                   <div className="grid grid-cols-1 gap-2 mt-2">
+                                      <div>
+                                        <label className="text-[10px] uppercase font-bold opacity-70">权重</label>
+                                        <input 
+                                          type="number" value={pool.weight}
+                                          onChange={(e) => {
+                                            const newPools = [...config.pools];
+                                            newPools[idx] = { ...pool, weight: parseInt(e.target.value) || 0 };
+                                            setConfig({...config, pools: newPools});
+                                          }}
+                                          className="w-full text-xs p-1 rounded border-black/10 bg-white/50"
+                                        />
+                                      </div>
+                                   </div>
+                                </div>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+                  </section>
+
+                  {/* 全局设置 */}
+                  <section>
+                    <h4 className="text-lg font-bold mb-4 border-l-4 border-blue-500 pl-3">全局参数</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">刷新订单消耗 (金币)</label>
+                         <input 
+                           type="number" 
+                           value={config.global.refreshCost}
+                           onChange={(e) => setConfig({...config, global: {...config.global, refreshCost: parseInt(e.target.value) || 0}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">初始金币</label>
+                         <input 
+                           type="number" 
+                           value={config.global.initialGold}
+                           onChange={(e) => setConfig({...config, global: {...config.global, initialGold: parseInt(e.target.value) || 0}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">初始奖券</label>
+                         <input 
+                           type="number" 
+                           value={config.global.initialTickets}
+                           onChange={(e) => setConfig({...config, global: {...config.global, initialTickets: parseInt(e.target.value) || 0}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">主线池出现概率 (0-1)</label>
+                         <input 
+                           type="number" 
+                           step="0.05"
+                           min="0" max="1"
+                           value={config.global.mainlineChance !== undefined ? config.global.mainlineChance : 0.5}
+                           onChange={(e) => setConfig({...config, global: {...config.global, mainlineChance: parseFloat(e.target.value)}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">主线道具掉率 (0-1)</label>
+                         <input 
+                           type="number" 
+                           step="0.05"
+                           min="0" max="1"
+                           value={config.global.mainlineDropRate !== undefined ? config.global.mainlineDropRate : 0.3}
+                           onChange={(e) => setConfig({...config, global: {...config.global, mainlineDropRate: parseFloat(e.target.value)}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                         <label className="text-xs font-bold text-slate-500">主线填充物传说概率 (0-1)</label>
+                         <input 
+                           type="number" 
+                           step="0.05"
+                           min="0" max="1"
+                           value={config.global.mainlineFillerLegendaryRate !== undefined ? config.global.mainlineFillerLegendaryRate : 0.1}
+                           onChange={(e) => setConfig({...config, global: {...config.global, mainlineFillerLegendaryRate: parseFloat(e.target.value)}})}
+                           className="border rounded px-3 py-2 font-mono"
+                         />
+                      </div>
+                    </div>
+                  </section>
+                  
+                </div>
+
+                <div className="p-4 bg-slate-100 border-t flex justify-between items-center">
+                   <div className="flex gap-2">
+                      <button 
+                         onClick={() => setDefaultResetConfirmOpen(true)}
+                         className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-white rounded-lg transition-colors font-bold text-sm"
+                      >
+                         <ResetIcon size={16} /> 重置默认
+                      </button>
+                   </div>
+                   
+                   <div className="flex gap-3">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors font-bold shadow-sm">
+                         <Upload size={18} />
+                         <span>导入配置</span>
+                         <input type="file" accept=".json" onChange={handleImportConfig} className="hidden" />
+                      </label>
+                      
+                      <button 
+                         onClick={handleExportConfig}
+                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-bold shadow-lg"
+                      >
+                         <Download size={18} /> 导出配置
+                      </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+    </>
+  );
+}
