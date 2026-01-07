@@ -155,6 +155,52 @@ export default function App() {
                                 </div>
                             </section>
 
+                            {/* 订单数量权重配置 (新增) */}
+                            <section>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单道具数量权重 (2/3/4)</h4>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-100 text-slate-500">
+                                            <tr>
+                                                <th className="p-2 text-left">阶段名称</th>
+                                                <th className="p-2 text-center w-20">2个</th>
+                                                <th className="p-2 text-center w-20">3个</th>
+                                                <th className="p-2 text-center w-20">4个</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {config.stages.map((stage, sIdx) => (
+                                                <tr key={stage.id} className="border-b hover:bg-slate-50">
+                                                    <td className="p-2 font-bold">{stage.name}</td>
+                                                    {[2, 3, 4].map(count => (
+                                                        <td key={count} className="p-2 text-center">
+                                                            <input
+                                                                type="number"
+                                                                className={`w-16 p-1 border rounded text-center font-mono ${stage.orderCountWeights?.[count] > 0 ? 'bg-white font-bold' : 'bg-slate-50 text-slate-400'}`}
+                                                                value={stage.orderCountWeights?.[count] || 0}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    const newStages = [...config.stages];
+                                                                    const currentWeights = newStages[sIdx].orderCountWeights || { 2: 0, 3: 0, 4: 0 };
+                                                                    newStages[sIdx] = {
+                                                                        ...newStages[sIdx],
+                                                                        orderCountWeights: {
+                                                                            ...currentWeights,
+                                                                            [count]: val
+                                                                        }
+                                                                    };
+                                                                    setConfig({ ...config, stages: newStages });
+                                                                }}
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+
                             {/* 技能配置 */}
                             <section>
                                 <h4 className="text-lg font-bold mb-4 border-l-4 border-indigo-500 pl-3">技能配置 (勾选以启用掉落)</h4>

@@ -136,12 +136,12 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                 targetMainlineItem = null;
             } else {
                 if (tempPools.length > 0) {
-                    const totalWeight = tempPools.reduce((sum, p) => sum + p.weight, 0);
+                    const totalWeight = tempPools.reduce((sum, p) => sum + (p.weight || 1), 0);
                     let r = Math.random() * totalWeight;
                     let selectedIndex = -1;
 
                     for (let j = 0; j < tempPools.length; j++) {
-                        r -= tempPools[j].weight;
+                        r -= (tempPools[j].weight || 1);
                         if (r <= 0) {
                             selectedIndex = j;
                             break;

@@ -57,21 +57,28 @@ export const rollRequirementRarity = (config, currentStageConfig) => {
 };
 
 export const generateOrder = (allNormalItems, config, hasSkill = () => false, currentStageConfig) => {
-    const { orderCountRange } = currentStageConfig;
-    const rand = Math.random();
-    let count = orderCountRange[0];
+    // P0: Use orderCountWeights for configurable requirement counts (2, 3, or 4)
+    let count = 3;
+    if (currentStageConfig.orderCountWeights) {
+        const weights = currentStageConfig.orderCountWeights;
+        const w2 = weights[2] || 0;
+        const w3 = weights[3] || 0;
+        const w4 = weights[4] || 0;
+        const totalWeight = w2 + w3 + w4;
 
-    // 简单的加权计算数量
-    if (orderCountRange[1] > orderCountRange[0]) {
-        if (currentStageConfig.id === 1) { // Stage 2
-            count = rand < 0.5 ? 2 : 3;
-        } else if (currentStageConfig.id === 2) { // Stage 3
-            count = rand < 0.3 ? 2 : 3;
-        } else if (currentStageConfig.id === 3) { // Stage 4
-            count = rand < 0.8 ? 3 : 4;
-        } else if (currentStageConfig.id === 4) { // Stage 5
-            count = rand < 0.6 ? 3 : 4;
+        // Safety check to avoid infinite loops or errors if weights are 0
+        if (totalWeight <= 0) {
+            count = 3;
+        } else {
+            let random = Math.random() * totalWeight;
+            if (random < w2) count = 2;
+            else if (random < w2 + w3) count = 3;
+            else count = 4;
         }
+    } else {
+        // Fallback legacy logic
+        const { orderCountRange } = currentStageConfig;
+        count = Math.floor(Math.random() * (orderCountRange[1] - orderCountRange[0] + 1)) + orderCountRange[0];
     }
 
     // 技能【偷工减料】
@@ -93,11 +100,11 @@ export const generateOrder = (allNormalItems, config, hasSkill = () => false, cu
     let rawBaseReward = 0;
 
     if (count <= 2) {
-        rawBaseReward = rewardType === 'gold' ? 5 : 10;
+        rawBaseReward = rewardType === 'gold' ? 5 : 5;
     } else if (count === 3) {
-        rawBaseReward = rewardType === 'gold' ? 10 : 20;
+        rawBaseReward = rewardType === 'gold' ? 10 : 15;
     } else {
-        rawBaseReward = rewardType === 'gold' ? 15 : 30;
+        rawBaseReward = rewardType === 'gold' ? 15 : 20;
     }
 
     const baseReward = Math.ceil(rawBaseReward * (1 + totalReqBonus));
