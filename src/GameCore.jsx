@@ -484,7 +484,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                     currentStageConfig.mechanics.synthesis;
 
                                 // Badge Logic: Scans all orders
-                                const activeReqs = orders.filter(o => o).flatMap(o => o.requirements);
+                                const activeReqs = [...orders, mainlineOrder].filter(Boolean).flatMap(o => o.requirements);
                                 // Find best requirement? Ideally any requirement that needs this item.
                                 // We check if ANY requirement matches name.
                                 // isMaxSatisfied if ANY requirement is satisfied by this quality.
@@ -541,7 +541,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                             <div className="relative transform hover:scale-105 transition-transform">
                                                 {(() => {
                                                     // Pending Item Badge Logic
-                                                    const activeReqs = orders.filter(o => o).flatMap(o => o.requirements);
+                                                    const activeReqs = [...orders, mainlineOrder].filter(Boolean).flatMap(o => o.requirements);
                                                     const matchedReqs = activeReqs.filter(r => r.name === pendingItem.name);
                                                     const isNeeded = matchedReqs.length > 0;
                                                     const isMaxSatisfied = isNeeded && matchedReqs.some(r => pendingItem.rarity.bonus >= r.requiredRarity.bonus);

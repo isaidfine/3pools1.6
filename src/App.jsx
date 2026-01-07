@@ -354,36 +354,7 @@ export default function App() {
                                 </div>
                             </section>
 
-                            {/* 奖池设置 (恢复) */}
-                            <section>
-                                <h4 className="text-lg font-bold mb-4 border-l-4 border-green-500 pl-3">奖池权重</h4>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {config.pools.map((pool, idx) => (
-                                            <div key={pool.id} className={`p-3 rounded-lg border flex items-center gap-3 ${pool.color}`}>
-                                                <span className="text-2xl">{pool.icon}</span>
-                                                <div className="flex-1">
-                                                    <div className="font-bold">{pool.name}</div>
-                                                    <div className="grid grid-cols-1 gap-2 mt-2">
-                                                        <div>
-                                                            <label className="text-[10px] uppercase font-bold opacity-70">权重</label>
-                                                            <input
-                                                                type="number" value={pool.weight}
-                                                                onChange={(e) => {
-                                                                    const newPools = [...config.pools];
-                                                                    newPools[idx] = { ...pool, weight: parseInt(e.target.value) || 0 };
-                                                                    setConfig({ ...config, pools: newPools });
-                                                                }}
-                                                                className="w-full text-xs p-1 rounded border-black/10 bg-white/50"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </section>
+
 
                             {/* 全局设置 */}
                             <section>

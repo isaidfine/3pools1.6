@@ -15,60 +15,61 @@ export const INITIAL_STAGE_CONFIG = [
         id: 0,
         name: '纯净时代',
         desc: 'The Fruit Age',
-        inventorySize: 6,
-        orderSlots: 2,
-        poolSize: 3,
-        allowedPoolCount: 3,
-        fixedPrice: 1,
-        orderCountRange: [2, 2],
-        rarityWeights: { common: 1.0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        mechanics: { refresh: false, affixes: false, synthesis: false, variablePrice: false },
-        unlocks: ["游戏开始！", "解锁池子：水果、药物、文具"]
-    },
-    {
-        id: 1,
-        name: '初识价值',
-        desc: 'The Medicine Age',
-        inventorySize: 7,
-        orderSlots: 3,
-        poolSize: 4,
-        allowedPoolCount: 4,
-        fixedPrice: 1,
-        orderCountRange: [2, 3],
-        rarityWeights: { common: 0.5, uncommon: 0.5, rare: 0, epic: 0, legendary: 0 },
-        // 变更确认：解锁合成，无刷新
-        mechanics: { refresh: false, affixes: false, synthesis: true, variablePrice: false },
-        unlocks: ["解锁新池子：厨具", "新机制：物品合成 (限优秀品质)", "物品品质：【优秀】(绿色) 开放掉落", "背包栏位 +1", "订单栏位 +1"]
-    },
-    {
-        id: 2,
-        name: '风险引入',
-        desc: 'The Stationery Age',
-        inventorySize: 8,
-        orderSlots: 3,
-        poolSize: 5,
-        allowedPoolCount: 5,
-        fixedPrice: null,
-        orderCountRange: [2, 3],
-        rarityWeights: { common: 0.5, uncommon: 0.3, rare: 0.2, epic: 0, legendary: 0 },
-        // 变更确认：无刷新，合成上限至Rare
-        mechanics: { refresh: false, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["解锁新池子：电器 (全解锁)", "新机制：奖池词缀", "新机制：价格波动", "物品品质：【稀有】(蓝色) 开放掉落", "合成上限提升至蓝色", "背包栏位 +1", "技能池新增：精打细算、贵宾折扣"]
-    },
-    {
-        id: 3,
-        name: '策略完全体',
-        desc: 'The Kitchenware Age',
-        inventorySize: 9,
+        inventorySize: 10,
         orderSlots: 4,
         poolSize: 5,
         allowedPoolCount: 5,
         fixedPrice: null,
         orderCountRange: [3, 4],
-        rarityWeights: { common: 0.4, uncommon: 0.25, rare: 0.2, epic: 0.1, legendary: 0.05 },
-        // 变更确认：解锁刷新
+        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
         mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["新机制：订单刷新", "物品品质：【史诗】(紫色) 开放掉落", "背包栏位 +1", "订单栏位 +1", "技能池新增：困难订单专家、刷新类技能"]
+        unlocks: ["游戏开始！", "全机制解锁：刷新、合成、词缀、波动", "全物品开放"]
+    },
+    {
+        id: 1,
+        name: '初识价值',
+        desc: 'The Medicine Age',
+        inventorySize: 10,
+        orderSlots: 4,
+        poolSize: 5,
+        allowedPoolCount: 5,
+        fixedPrice: null,
+        orderCountRange: [3, 4],
+        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
+        unlocks: ["阶段提升", "继续挑战"]
+    },
+    {
+        id: 2,
+        name: '风险引入',
+        desc: 'The Stationery Age',
+        inventorySize: 10,
+        orderSlots: 4,
+        poolSize: 5,
+        allowedPoolCount: 5,
+        fixedPrice: null,
+        orderCountRange: [3, 4],
+        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
+        unlocks: ["阶段提升", "更难的挑战"]
+    },
+    {
+        id: 3,
+        name: '策略完全体',
+        desc: 'The Kitchenware Age',
+        inventorySize: 10,
+        orderSlots: 4,
+        poolSize: 5,
+        allowedPoolCount: 5,
+        fixedPrice: null,
+        orderCountRange: [3, 4],
+        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
+        unlocks: ["阶段提升", "逼近巅峰"]
     },
     {
         id: 4,
@@ -80,9 +81,10 @@ export const INITIAL_STAGE_CONFIG = [
         allowedPoolCount: 5,
         fixedPrice: null,
         orderCountRange: [3, 4],
-        rarityWeights: { common: 0.35, uncommon: 0.3, rare: 0.2, epic: 0.15, legendary: 0.05 },
+        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
         mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["终极挑战开始", "更高难度的订单需求", "背包栏位 +1"]
+        unlocks: ["终极挑战", "最高难度"]
     }
 ];
 
@@ -90,7 +92,6 @@ export const INITIAL_STAGE_CONFIG = [
 export const SKILL_DEFINITIONS = [
     { id: 'poverty_relief', name: '贫困救济', desc: '持有金币 < 5 时，完成订单的金币奖励额外 +10。', Icon: Gift, type: 'gold', color: 'text-yellow-600 bg-yellow-100' },
     { id: 'lucky_7', name: '幸运 7', desc: '当前金币数量的尾数为 7 时，抽取传说物品的概率翻倍。', Icon: Star, type: 'luck', color: 'text-green-600 bg-green-100' },
-    { id: 'calculated', name: '精打细算', desc: '当前金币 < 10 时，普通抽奖的金币消耗 -2（最低为1）。', Icon: Coins, type: 'gold', color: 'text-blue-600 bg-blue-100' },
     { id: 'alchemy', name: '炼金术', desc: '回收“稀有”及以上品质物品时，15% 概率获得 5 张奖券。', Icon: Sparkles, type: 'recycle', color: 'text-purple-600 bg-purple-100' },
     { id: 'vip_discount', name: '贵宾折扣', desc: '“精准”和“有的放矢”词缀的奖池金币消耗减少 1。', Icon: Ticket, type: 'draw', color: 'text-orange-600 bg-orange-100' },
     { id: 'negotiator', name: '谈判专家', desc: '抽到“史诗”或以上品质物品时，所有订单获得 1 次刷新次数。', Icon: ArrowLeftRight, type: 'utility', color: 'text-slate-600 bg-slate-100' },
@@ -125,27 +126,27 @@ export const INITIAL_RARITY_CONFIG = [
 
 export const INITIAL_POOLS_DATA = [
     {
-        id: 'fruit', name: '水果', type: 'normal', weight: 4, currency: 'gold',
+        id: 'fruit', name: '水果', type: 'normal', currency: 'gold',
         color: 'bg-green-100 text-green-800 border-green-200', icon: '🍎',
         items: [{ name: '西瓜', icon: '🍉' }, { name: '柠檬', icon: '🍋' }, { name: '芒果', icon: '🥭' }, { name: '苹果', icon: '🍎' }, { name: '橙子', icon: '🍊' }]
     },
     {
-        id: 'medicine', name: '药物', type: 'normal', weight: 4, currency: 'gold',
+        id: 'medicine', name: '药物', type: 'normal', currency: 'gold',
         color: 'bg-red-100 text-red-800 border-red-200', icon: '💊',
         items: [{ name: '冲剂', icon: '🍵' }, { name: '滴眼液', icon: '💧' }, { name: '注射器', icon: '💉' }, { name: '胶囊', icon: '💊' }, { name: '绷带', icon: '🤕' }]
     },
     {
-        id: 'stationery', name: '文具', type: 'normal', weight: 4, currency: 'gold',
+        id: 'stationery', name: '文具', type: 'normal', currency: 'gold',
         color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: '✏️',
         items: [{ name: '铅笔', icon: '✏️' }, { name: '橡皮', icon: '🧼' }, { name: '订书机', icon: '📎' }, { name: '笔记本', icon: '📒' }, { name: '尺子', icon: '📏' }]
     },
     {
-        id: 'kitchenware', name: '厨具', type: 'normal', weight: 4, currency: 'gold',
+        id: 'kitchenware', name: '厨具', type: 'normal', currency: 'gold',
         color: 'bg-orange-100 text-orange-800 border-orange-200', icon: '🍳',
         items: [{ name: '平底锅', icon: '🍳' }, { name: '菜刀', icon: '🔪' }, { name: '砧板', icon: '🪵' }, { name: '汤勺', icon: '🥄' }, { name: '叉子', icon: '🍴' }]
     },
     {
-        id: 'electronics', name: '电器', type: 'normal', weight: 4, currency: 'gold',
+        id: 'electronics', name: '电器', type: 'normal', currency: 'gold',
         color: 'bg-blue-100 text-blue-800 border-blue-200', icon: '⚡️',
         items: [{ name: '手机', icon: '📱' }, { name: '耳机', icon: '🎧' }, { name: '空调', icon: '❄️' }, { name: '电脑', icon: '💻' }, { name: '电视', icon: '📺' }]
     }
@@ -170,7 +171,7 @@ export const INITIAL_GAME_CONFIG = {
         initialGold: 30,
         initialTickets: 0,
         mainlineChance: 0.5,
-        mainlineDropRate: 0.3,
+        mainlineDropRate: 0.4,
         mainlineFillerLegendaryRate: 0.1,
     }
 };

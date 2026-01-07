@@ -27,7 +27,8 @@ export const getRandomItems = (array, count) => {
 };
 
 export const rollRequirementRarity = (config, currentStageConfig) => {
-    const weights = currentStageConfig.rarityWeights;
+    // P0: Use orderRarityWeights if available (specific to orders), otherwise fallback to general rarityWeights
+    const weights = currentStageConfig.orderRarityWeights || currentStageConfig.rarityWeights;
     const r = Math.random();
 
     // 累积概率计算
@@ -122,8 +123,10 @@ export const generateMainlineOrder = (level, config, currentStageConfig) => {
     const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
 
     // 根据阶段设置主线需求的稀有度
-    const mainlineFillerRarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-    const targetRarityId = mainlineFillerRarities[level] || 'common';
+    // 根据阶段设置主线需求的稀有度
+    // const mainlineFillerRarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    // const targetRarityId = mainlineFillerRarities[level] || 'common';
+    const targetRarityId = 'epic'; // P0 Reversion: Always require Epic
     const fillerRarity = config.rarity.find(r => r.id === targetRarityId);
     const mythicRarity = config.rarity.find(r => r.id === 'mythic');
 

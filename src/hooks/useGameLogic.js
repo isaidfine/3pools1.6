@@ -192,7 +192,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             if (!config.enabledSkillIds.includes(s.id)) return false;
             if (skills.includes(s.id)) return false;
 
-            if ((s.id === 'calculated' || s.id === 'vip_discount') && mainlineProgress < 2) return false;
+            if (s.id === 'vip_discount' && mainlineProgress < 2) return false;
             if (s.id === 'hard_order_expert' && mainlineProgress < 3) return false;
             if ((['cut_corners', 'time_freeze', 'negotiator'].includes(s.id)) && mainlineProgress < 3) return false;
 
@@ -292,6 +292,8 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                 extraGold = 10;
             }
 
+            // P0: extraGold is added AFTER the multiplier, making it a final flat bonus (unaffected by rarity/flush multipliers).
+            // This matches the user requirement: "10点加成不会吃到稀有度的加成，变成最终加成".
             const finalReward = Math.ceil(order.baseReward * multiplier) + extraGold;
             return { index: idx, finalReward, rewardType: order.rewardType, isMainline: isMain, reqCount: order.requirements.length, requirements: order.requirements };
         };
