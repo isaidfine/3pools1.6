@@ -180,7 +180,7 @@ export default function App() {
                                                 const weights = stage.orderRarityWeights || stage.rarityWeights;
                                                 return (
                                                     <tr key={stage.id} className="border-b hover:bg-slate-50">
-                                                        <td className="p-2 font-bold">{stage.name}</td>
+                                                        <td className="p-2 font-bold">{sIdx + 1}. {stage.name}</td>
                                                         {['common', 'uncommon', 'rare', 'epic', 'legendary'].map(rKey => (
                                                             <td key={rKey} className="p-2 text-center">
                                                                 <input

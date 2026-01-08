@@ -11,7 +11,8 @@ const PoolCardBase = ({
     onMouseEnter,
     onMouseLeave,
     isHovered,
-    relevantRequirements = []
+    relevantRequirements = [],
+    disabled = false // New prop to force disable (e.g. from parent)
 }) => {
     // Cost Calculation
     let finalCost = pool.cost;
@@ -23,23 +24,24 @@ const PoolCardBase = ({
     }
 
     const canAfford = pool.currency === 'gold' ? gold >= finalCost : tickets >= finalCost;
+    const isEffectiveDisabled = disabled || !canAfford;
 
     // Theme: Use the solid pastel color defined in constants (pool.color)
     const isMainline = pool.type === 'mainline';
 
     return (
         <button
-            onClick={() => canAfford && onDraw(pool)}
+            onClick={() => !isEffectiveDisabled && onDraw(pool)}
             onMouseEnter={() => onMouseEnter(pool)}
             onMouseLeave={onMouseLeave}
-            disabled={!canAfford}
+            aria-disabled={isEffectiveDisabled}
             className={`
                 relative w-full text-left group
                 rounded-2xl border-2 p-4 transition-all duration-200
                 transform-gpu will-change-transform backface-hidden subpixel-antialiased
                 ${pool.color} 
                 ${isHovered ? 'scale-[1.02] shadow-xl z-10 ring-4 ring-white/50' : 'shadow-sm hover:shadow-md'}
-                ${!canAfford ? 'opacity-60 grayscale-[0.8]' : 'active:scale-95'}
+                ${isEffectiveDisabled ? 'opacity-60 grayscale-[0.8] cursor-not-allowed' : 'active:scale-95 cursor-pointer'}
                 flex flex-col gap-3 min-h-[140px]
             `}
         >

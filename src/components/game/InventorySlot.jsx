@@ -75,12 +75,15 @@ export const InventorySlot = ({
     // If canSynthesize is true, show upgrade.
     // If isTarget is true and NOT synthesize, show swap/interaction.
 
+    const isDisabled = (isMultiSelectMode && !item) || (isReference && (!item || item.isMainlineItem)) || isPendingSlot;
+
     return (
         <button
-            onClick={() => onClick(index)}
+            onClick={() => !isDisabled && onClick(index)}
             onMouseEnter={() => onMouseEnter(index, item)}
             onMouseLeave={onMouseLeave}
-            disabled={(isMultiSelectMode && !item) || (isReference && (!item || item.isMainlineItem)) || isPendingSlot}
+            aria-disabled={isDisabled}
+            title={item ? `${item.rarity?.name || ''} ${item.name}${item.sterile ? ' (绝育)' : ''}` : ''}
             className={`
                 relative aspect-square rounded-xl border-2 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 select-none overflow-visible
                 ${item

@@ -405,22 +405,27 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
         }
 
         let currentInventory = overrideInventory ? [...overrideInventory] : [...inventory];
+        // Local state tracking for the loop
+        let localPendingItem = pendingItem;
+        let localOverload = false; // logic overload
         let remainingQueue = [];
-        let overloadTriggered = false;
+        let overloadTriggered = false; // for effect flag
 
         // Process items one by one
         for (let i = 0; i < newItems.length; i++) {
             const item = newItems[i];
 
             // 1. Check Overload (if enabled)
-            if (currentStageConfig.mechanics.specialization && !overloadTriggered) {
+            if (currentStageConfig.mechanics.specialization && !localOverload) {
                 const uniqueNames = new Set(currentInventory.map(invItem => invItem ? invItem.name : null).filter(n => n !== null));
                 // Check if adding this NEW type would exceed limit
                 if (uniqueNames.size >= 7 && !uniqueNames.has(item.name)) {
                     item.isOverload = true;
-                    overloadTriggered = true;
+                    localOverload = true;
+                    overloadTriggered = true; // for effect flag
 
-                    if (!pendingItem) {
+                    if (!localPendingItem) {
+                        localPendingItem = item;
                         setPendingItem(item);
                         showToast("库存种类过载！请选择一种物品进行批量替换，或丢弃新物品。", "warning");
                     } else {
@@ -431,7 +436,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             }
 
             // 2. Check if we are blocked by previous overload or full pending queue
-            if (overloadTriggered || pendingItem) {
+            if (localOverload || localPendingItem) {
                 remainingQueue.push(item);
                 continue;
             }
@@ -451,7 +456,8 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
                 currentInventory.push(item);
             } else {
                 // No space
-                if (!pendingItem) {
+                if (!localPendingItem) {
+                    localPendingItem = item;
                     setPendingItem(item);
                     showToast("背包已满！", "warning");
                 } else {

@@ -272,7 +272,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                         <div className={`
                         flex flex-col gap-4
                         transition-opacity duration-300
-                        ${pendingItem || isSubmitMode || isRecycleMode || selectionMode ? 'opacity-30 pointer-events-none' : 'opacity-100'}
+                        ${pendingItem || isSubmitMode || isRecycleMode || selectionMode ? 'opacity-100' : 'opacity-100'}
                     `}>
                             {activePools.map((pool) => {
                                 const relevantRequirements = [...orders, mainlineOrder]
@@ -302,6 +302,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                         onMouseLeave={handlePoolLeave}
                                         isHovered={hoveredPoolId === (pool.originalId || pool.id)}
                                         relevantRequirements={relevantRequirements}
+                                        disabled={!!pendingItem || isSubmitMode || isRecycleMode || !!selectionMode}
                                     />
                                 )
                             })}
@@ -570,11 +571,13 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                                             item={pendingItem}
                                                             index={-1}
                                                             isPendingSlot={true}
-                                                            isSelected={false} // Removed blue border focus
+                                                            isSelected={false}
                                                             isNeededForOrder={isNeeded}
                                                             isMaxSatisfied={isMaxSatisfied}
                                                             onClick={handleSlotClick}
-                                                            onMouseEnter={() => { }} onMouseLeave={() => { }}
+                                                            onMouseEnter={(i, item) => { state.setHoveredSlotIndex(-1); if (item) state.setHoveredItemName(item.name); }}
+                                                            onMouseLeave={() => { state.setHoveredSlotIndex(null); state.setHoveredItemName(null); }}
+                                                            isHovered={hoveredSlotIndex === -1}
                                                             className="w-16 h-16"
                                                         />
                                                     )
