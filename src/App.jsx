@@ -15,6 +15,7 @@ export default function App() {
     // Dev tools state
     const [devSkillsSelected, setDevSkillsSelected] = useState([]);
     const [initialSkills, setInitialSkills] = useState([]);
+    const [initialStage, setInitialStage] = useState(0);
 
     const handleHardReset = () => {
         setGameId(prev => prev + 1);
@@ -64,6 +65,7 @@ export default function App() {
                     key={gameId}
                     config={config}
                     initialSkills={initialSkills}
+                    initialProgress={initialStage}
                     onOpenSettings={() => setShowSettings(true)}
                     onReset={() => setResetConfirmOpen(true)}
                 />
@@ -100,9 +102,10 @@ export default function App() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                            {/* 阶段参数配置 (新增) */}
+                            {/* 1. 道具掉落概率配置 */}
                             <section>
-                                <h4 className="text-lg font-bold mb-4 border-l-4 border-emerald-500 pl-3">阶段稀有度配置 (概率: 0-1)</h4>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-emerald-500 pl-3">道具掉落概率配置 (Props Drop Rate)</h4>
+                                <div className="text-xs text-slate-500 mb-2">决定每次抽奖或刷新出物品时的品质分布。</div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-slate-100 text-slate-500">
@@ -155,9 +158,67 @@ export default function App() {
                                 </div>
                             </section>
 
-                            {/* 订单数量权重配置 (新增) */}
+                            {/* 2. 订单需求概率配置 (新增) */}
                             <section>
-                                <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单道具数量权重 (2/3/4)</h4>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-blue-500 pl-3">订单需求概率配置 (Order Requirement Rates)</h4>
+                                <div className="text-xs text-slate-500 mb-2">决定新生成订单时，所需的物品品质分布。</div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-100 text-slate-500">
+                                            <tr>
+                                                <th className="p-2 text-left">阶段名称</th>
+                                                <th className="p-2 text-center w-20">普通</th>
+                                                <th className="p-2 text-center w-20">优秀</th>
+                                                <th className="p-2 text-center w-20">稀有</th>
+                                                <th className="p-2 text-center w-20">史诗</th>
+                                                <th className="p-2 text-center w-20">传说</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {config.stages.map((stage, sIdx) => {
+                                                // 兼容性处理：如果 orderRarityWeights 不存在，使用 rarityWeights
+                                                const weights = stage.orderRarityWeights || stage.rarityWeights;
+                                                return (
+                                                    <tr key={stage.id} className="border-b hover:bg-slate-50">
+                                                        <td className="p-2 font-bold">{stage.name}</td>
+                                                        {['common', 'uncommon', 'rare', 'epic', 'legendary'].map(rKey => (
+                                                            <td key={rKey} className="p-2 text-center">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.05"
+                                                                    min="0" max="1"
+                                                                    className={`w-16 p-1 border rounded text-center font-mono ${weights[rKey] > 0 ? 'bg-white font-bold' : 'bg-slate-50 text-slate-400'}`}
+                                                                    value={weights[rKey]}
+                                                                    onChange={(e) => {
+                                                                        const val = parseFloat(e.target.value);
+                                                                        if (isNaN(val)) return;
+                                                                        const newStages = [...config.stages];
+                                                                        // 确保对象存在
+                                                                        const currentOrderWeights = newStages[sIdx].orderRarityWeights || { ...newStages[sIdx].rarityWeights };
+                                                                        newStages[sIdx] = {
+                                                                            ...newStages[sIdx],
+                                                                            orderRarityWeights: {
+                                                                                ...currentOrderWeights,
+                                                                                [rKey]: val
+                                                                            }
+                                                                        };
+                                                                        setConfig({ ...config, stages: newStages });
+                                                                    }}
+                                                                />
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            {/* 3. 订单数量权重配置 */}
+                            <section>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单所需数量权重 (Order Item Count)</h4>
+                                <div className="text-xs text-slate-500 mb-2">决定一个订单需要多少个物品 (2-4个)。</div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-slate-100 text-slate-500">
@@ -276,7 +337,41 @@ export default function App() {
                                         >
                                             清空选择
                                         </button>
+                                        <button
+                                            onClick={() => {
+                                                setDevSkillsSelected([]);
+                                                setInitialSkills([]);
+                                                setInitialStage(0);
+                                                handleHardReset();
+                                            }}
+                                            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-bold flex items-center gap-2"
+                                        >
+                                            <RotateCcw size={14} /> Reset Dev State
+                                        </button>
                                     </div>
+                                </div>
+                            </section>
+
+                            {/* Dev Tool: Stage Selector */}
+                            <section>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-orange-500 pl-3">开发者工具: 初始时代设置 (需重开游戏)</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {config.stages.map((stage, idx) => (
+                                        <button
+                                            key={stage.id}
+                                            onClick={() => {
+                                                setInitialStage(idx);
+                                                handleHardReset();
+                                            }}
+                                            className={`
+                                                px-3 py-2 rounded-lg border-2 text-sm font-bold transition-all flex flex-col items-center min-w-[100px]
+                                                ${initialStage === idx ? 'bg-orange-100 border-orange-500 text-orange-800 ring-2 ring-orange-300' : 'bg-white border-slate-200 hover:border-orange-200'}
+                                            `}
+                                        >
+                                            <span>Stage {stage.id}</span>
+                                            <span className="text-xs opacity-75">{stage.name}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </section>
 
@@ -340,15 +435,16 @@ export default function App() {
                                 </div>
                             </section>
 
-                            {/* 品质设置 (恢复) */}
+                            {/* 4. 品质基础参数 (重构) */}
                             <section>
-                                <h4 className="text-lg font-bold mb-4 border-l-4 border-purple-500 pl-3">品质参数</h4>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-purple-500 pl-3">品质属性 (Bonus & Recycle)</h4>
+                                <div className="text-xs text-slate-500 mb-2">配置各品质的金币加成倍率和回收价值。注意："Default Fallback Prob" 仅在某些特殊逻辑中作为保底使用，主要掉率请在上方配置。</div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-slate-100 text-slate-500">
                                             <tr>
                                                 <th className="p-2 text-left">品质名称</th>
-                                                <th className="p-2 text-left">基础概率 (0-1)</th>
+                                                <th className="p-2 text-left text-xs">Default Fallback Prob</th>
                                                 <th className="p-2 text-left">加成倍率 (Bonus)</th>
                                                 <th className="p-2 text-left">回收价值 (Gold)</th>
                                             </tr>
@@ -366,7 +462,7 @@ export default function App() {
                                                                 newRarity[idx] = { ...r, prob: parseFloat(e.target.value) };
                                                                 setConfig({ ...config, rarity: newRarity });
                                                             }}
-                                                            className="border rounded w-20 px-1 py-0.5"
+                                                            className="border rounded w-20 px-1 py-0.5 bg-slate-50 text-slate-400"
                                                         />
                                                     </td>
                                                     <td className="p-2">

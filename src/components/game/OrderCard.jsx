@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { RefreshCw, Check, Ticket, Coins, Clock, Zap, Crown, Trophy } from 'lucide-react';
 
-export const OrderCard = ({
+const OrderCardBase = ({
     order,
     index,
     isMainline,
@@ -100,17 +100,33 @@ export const OrderCard = ({
                                 }
                             }
 
+                            // Calculate progress for this requirement
+                            const count = inventory.filter(i => i && i.name === req.name && i.rarity.bonus >= req.requiredRarity.bonus).length;
+                            const isMet = count >= 1; // Simplification: we need 1 matching item per requirement slot? Or generally? 
+                            // Current logic implies 1-to-1 mapping in UI but count check here.
+
+                            // Visual State: Is selected?
+                            const isSelected = selectedIndices.some(idx => {
+                                const item = inventory[idx];
+                                return item && item.name === req.name && item.rarity.bonus >= req.requiredRarity.bonus;
+                            });
+                            const isSubmitted = isSubmitMode && selectedItemNames && selectedItemNames.includes(req.name);
+
+                            // Helpers for UI styling (restored)
+                            // Find "best" candidate to show quality match status if not selected
+                            const allCandidates = inventory.filter(i => i && i.name === req.name);
+                            allCandidates.sort((a, b) => (b.rarity.bonus || 0) - (a.rarity.bonus || 0));
+                            const bestCandidate = allCandidates[0];
+
+                            // If we are selecting, we might have a specific matchedItem
                             if (!matchedItem) {
-                                const candidates = inventory.filter(i => i.name === req.name);
-                                candidates.sort((a, b) => b.rarity.bonus - a.rarity.bonus);
-                                matchedItem = candidates[0];
+                                matchedItem = bestCandidate;
                             }
 
                             const hasItem = !!matchedItem;
                             const isQualitySatisfied = matchedItem && matchedItem.rarity.bonus >= req.requiredRarity.bonus;
-                            const isSubmitted = isSubmitMode && selectedItemNames && selectedItemNames.includes(req.name);
 
-                            const isPoolHighlighted = hoveredPoolId && req.poolId === hoveredPoolId && !req.isMainlineItem && hoveredPoolItemNames && hoveredPoolItemNames.includes(req.name);
+                            const isPoolHighlighted = hoveredPoolId && !req.isMainlineItem && hoveredPoolItemNames && hoveredPoolItemNames.includes(req.name);
                             const isItemHighlighted = hoveredItemName && req.name === hoveredItemName;
 
                             const borderStyle = hasItem ? 'border-solid' : 'border-dashed';
@@ -184,3 +200,4 @@ export const OrderCard = ({
         </div>
     );
 };
+export const OrderCard = React.memo(OrderCardBase);

@@ -25,6 +25,9 @@ export const InventorySlot = ({
     // Specific mechanic flags
     canSynthesize,
     isSterile,
+    isOverloadTarget,
+
+    // Style overrides
 
     // Style overrides
     className = ""
@@ -103,7 +106,7 @@ export const InventorySlot = ({
 
             {item && (
                 <>
-                    <div className={`flex flex-col items-center justify-center w-full h-full ${item.sterile ? 'grayscale opacity-70' : ''}`}>
+                    <div className={`flex flex-col items-center justify-center w-full h-full ${item.sterile || (item.decay !== undefined && item.decay <= 0) ? 'grayscale opacity-70' : ''}`}>
                         <span className="text-2xl lg:text-3xl filter drop-shadow-sm transition-transform duration-300">
                             {item.icon}
                         </span>
@@ -120,6 +123,22 @@ export const InventorySlot = ({
                         <div className="absolute bottom-0 left-0 p-0.5 bg-gray-800/80 rounded-tr-lg text-white z-10 text-[9px] px-1 font-bold">
                             绝育的
                         </div>
+                    )}
+
+                    {/* Entropy Decay Indicator */}
+                    {item.decay !== undefined && (
+                        <>
+                            <div className={`absolute top-0 left-0 p-0.5 rounded-br-lg text-[9px] font-mono font-bold z-10 px-1 leading-none
+                                ${item.decay <= 0 ? 'bg-red-600 text-white' : 'bg-slate-700/80 text-white'}
+                            `}>
+                                {item.decay <= 0 ? '损坏' : item.decay}
+                            </div>
+                            {item.decay <= 0 && (
+                                <div className="absolute inset-0 bg-slate-500/30 rounded-xl z-20 flex items-center justify-center pointer-events-none">
+                                    <Ban size={24} className="text-red-800 opacity-60" />
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Select/Trash Overlay Icon */}
@@ -148,7 +167,16 @@ export const InventorySlot = ({
                     */}
 
                     {/* Action Overlays */}
-                    {!isMultiSelectMode && !isSelectionMode && isHovered && isTarget && (
+                    {/* Overload Action Overlay (Shows on all matching items) */}
+                    {!isMultiSelectMode && !isSelectionMode && isOverloadTarget && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/60 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
+                            <Trash2 size={32} className="text-white drop-shadow-md" />
+                            <span className="text-white text-[10px] font-black uppercase tracking-wider text-center px-1">回收</span>
+                        </div>
+                    )}
+
+                    {/* Standard Action Overlays (Hover only) */}
+                    {!isMultiSelectMode && !isSelectionMode && isHovered && isTarget && !isOverloadTarget && (
                         <>
                             {canSynthesize ? (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-400/80 rounded-lg transition-opacity z-10 backdrop-blur-[1px] animate-pulse">

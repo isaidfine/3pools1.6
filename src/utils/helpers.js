@@ -207,22 +207,31 @@ export const rollRarity = (config, affixKey = null, currentGold = 0, hasSkill = 
         }
     }
 
-    const r = Math.random();
-    let accumulated = 0;
+    // Calcluate Total Weight for Normalization
+    const orderedRarityIds = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    let totalWeight = 0;
 
-    let legendaryProbMultiplier = 1;
-    if (hasSkill('lucky_7') && (currentGold % 10 === 7)) {
-        legendaryProbMultiplier = 2;
+    // First pass: sum weights
+    for (const rid of orderedRarityIds) {
+        let w = weights[rid] || 0;
+        if (rid === 'legendary' && hasSkill('lucky_7') && (currentGold % 10 === 7)) {
+            w *= 2;
+        }
+        totalWeight += w;
     }
 
-    // 使用 Stage Config 的权重进行 Roll
-    const orderedRarityIds = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    // Roll
+    const r = Math.random() * totalWeight;
+    let accumulated = 0;
 
     for (const rid of orderedRarityIds) {
-        if (weights[rid] > 0) {
-            let prob = weights[rid];
-            if (rid === 'legendary') prob *= legendaryProbMultiplier; // 虽然权重表里是 0，但如果未来配置开放了
-            accumulated += prob;
+        let w = weights[rid] || 0;
+        if (rid === 'legendary' && hasSkill('lucky_7') && (currentGold % 10 === 7)) {
+            w *= 2;
+        }
+
+        if (w > 0) {
+            accumulated += w;
             if (r <= accumulated) {
                 return rarityConfig.find(item => item.id === rid);
             }

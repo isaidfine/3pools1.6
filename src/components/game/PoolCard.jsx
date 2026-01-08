@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Coins, Ticket, Check, RefreshCw, Zap } from 'lucide-react';
 
-export const PoolCard = ({
+const PoolCardBase = ({
     pool,
     gold,
     tickets,
@@ -36,6 +36,7 @@ export const PoolCard = ({
             className={`
                 relative w-full text-left group
                 rounded-2xl border-2 p-4 transition-all duration-200
+                transform-gpu will-change-transform backface-hidden subpixel-antialiased
                 ${pool.color} 
                 ${isHovered ? 'scale-[1.02] shadow-xl z-10 ring-4 ring-white/50' : 'shadow-sm hover:shadow-md'}
                 ${!canAfford ? 'opacity-60 grayscale-[0.8]' : 'active:scale-95'}
@@ -141,3 +142,4 @@ export const PoolCard = ({
         </button>
     );
 };
+export const PoolCard = React.memo(PoolCardBase);

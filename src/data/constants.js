@@ -13,8 +13,8 @@ export const ResetIcon = RotateCcw;
 export const INITIAL_STAGE_CONFIG = [
     {
         id: 0,
-        name: '纯净时代',
-        desc: 'The Fruit Age',
+        name: '阶段 1',
+        desc: '普通模式 (Base)',
         inventorySize: 10,
         orderSlots: 4,
         poolSize: 5,
@@ -22,15 +22,15 @@ export const INITIAL_STAGE_CONFIG = [
         fixedPrice: null,
         orderCountRange: [2, 4],
         orderCountWeights: { 2: 20, 3: 40, 4: 20 },
-        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
+        rarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        orderRarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
         mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["游戏开始！", "全机制解锁：刷新、合成、词缀、波动", "全物品开放"]
+        unlocks: ["游戏开始！", "普通模式"]
     },
     {
         id: 1,
-        name: '初识价值',
-        desc: 'The Medicine Age',
+        name: '阶段 2',
+        desc: '波动模式 (Volatility)',
         inventorySize: 10,
         orderSlots: 4,
         poolSize: 5,
@@ -38,31 +38,31 @@ export const INITIAL_STAGE_CONFIG = [
         fixedPrice: null,
         orderCountRange: [2, 4],
         orderCountWeights: { 2: 20, 3: 40, 4: 20 },
-        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["阶段提升", "继续挑战"]
+        rarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        orderRarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true, volatility: true },
+        unlocks: ["阶段提升", "波动机制生效"]
     },
     {
         id: 2,
-        name: '风险引入',
-        desc: 'The Stationery Age',
-        inventorySize: 10,
+        name: '阶段 3',
+        desc: '专业化模式 (Specialization)',
+        inventorySize: 20,
         orderSlots: 4,
         poolSize: 5,
         allowedPoolCount: 5,
         fixedPrice: null,
         orderCountRange: [2, 4],
         orderCountWeights: { 2: 20, 3: 40, 4: 20 },
-        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["阶段提升", "更难的挑战"]
+        rarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        orderRarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true, specialization: true },
+        unlocks: ["阶段提升", "7种物品上限生效"]
     },
     {
         id: 3,
-        name: '策略完全体',
-        desc: 'The Kitchenware Age',
+        name: '阶段 4',
+        desc: '熵增模式 (Entropy)',
         inventorySize: 10,
         orderSlots: 4,
         poolSize: 5,
@@ -70,26 +70,10 @@ export const INITIAL_STAGE_CONFIG = [
         fixedPrice: null,
         orderCountRange: [2, 4],
         orderCountWeights: { 2: 20, 3: 40, 4: 20 },
-        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["阶段提升", "逼近巅峰"]
-    },
-    {
-        id: 4,
-        name: '巅峰挑战',
-        desc: 'The Electronics Age',
-        inventorySize: 10,
-        orderSlots: 4,
-        poolSize: 5,
-        allowedPoolCount: 5,
-        fixedPrice: null,
-        orderCountRange: [2, 4],
-        orderCountWeights: { 2: 20, 3: 40, 4: 20 },
-        rarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        orderRarityWeights: { common: 0.40, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0 },
-        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true },
-        unlocks: ["终极挑战", "最高难度"]
+        rarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        orderRarityWeights: { common: 0.35, uncommon: 0.30, rare: 0.20, epic: 0.10, legendary: 0.05, mythic: 0 },
+        mechanics: { refresh: true, affixes: true, synthesis: true, variablePrice: true, entropy: true },
+        unlocks: ["阶段提升", "物品腐烂机制生效"]
     }
 ];
 
@@ -173,7 +157,7 @@ export const INITIAL_GAME_CONFIG = {
     enabledSkillIds: SKILL_DEFINITIONS.map(s => s.id),
     global: {
         refreshCost: 5,
-        initialGold: 30,
+        initialGold: 20,
         initialTickets: 0,
         mainlineChance: 0.5,
         mainlineDropRate: 0.4,

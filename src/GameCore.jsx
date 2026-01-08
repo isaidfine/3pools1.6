@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Settings, Download, Upload, RotateCcw, X, Coins, Ticket, Flag, Power, ChevronsUp, Check, Briefcase, ShoppingBag, Truck, Trash2, Package, RefreshCw, Lock, Star, Hand, Layers, Repeat, Send, AlertCircle, Zap } from 'lucide-react';
+import { Settings, Download, Upload, RotateCcw, X, Coins, Ticket, Flag, Power, ChevronsUp, Check, Briefcase, ShoppingBag, Truck, Trash2, Package, RefreshCw, Lock, Star, Hand, Layers, Repeat, Send, AlertCircle, Zap, ListOrdered } from 'lucide-react';
 
 import { useGameLogic } from './hooks/useGameLogic';
 import { Toast } from './components/ui/Toast';
@@ -11,10 +11,10 @@ import { PoolCard } from './components/game/PoolCard';
 import { OrderCard } from './components/game/OrderCard';
 import { SKILL_DEFINITIONS } from './data/constants';
 
-const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
+const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initialProgress = 0 }) => {
 
     // Initialize Logic Hook
-    const { state, actions, helpers } = useGameLogic(config, initialSkills, onReset);
+    const { state, actions, helpers } = useGameLogic(config, initialSkills, onReset, initialProgress);
 
     const {
         gold, tickets, mainlineProgress, currentStageConfig, maxInventorySize,
@@ -37,12 +37,15 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
         handleRefreshSingleOrder,
         handleOrderClick,
         handleConfirmSubmission,
-        handleConfirmRecycle,
         toggleSubmitMode,
         toggleRecycleMode,
         handleDraw,
         handleSelectionSelect,
-        handleSelectionCancel
+        handleSelectionCancel,
+        handleConfirmRecycle,
+        handleSortInventory,
+        handlePoolHover,
+        handlePoolLeave
     } = actions;
 
     const { hasSkill } = helpers;
@@ -108,11 +111,12 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                 </>
                             )}
 
+                            {/* Use existing buttons for non-overload */}
                             <button
                                 onClick={handleCloseModal}
                                 className={`mt-4 font-bold py-3 px-12 rounded-full shadow-lg transition-transform active:scale-95
-                         ${isVictory ? 'bg-yellow-500 text-white hover:bg-yellow-600 animate-pulse' : 'bg-slate-800 text-white hover:bg-slate-700'}
-                      `}
+                             ${isVictory ? 'bg-yellow-500 text-white hover:bg-yellow-600 animate-pulse' : 'bg-slate-800 text-white hover:bg-slate-700'}
+                          `}
                             >
                                 {isVictory ? '再来一局' : (isStageUp ? '继续挑战' : '收下')}
                             </button>
@@ -120,6 +124,8 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                     </div>
                 );
             }
+
+
             return null;
         } catch (error) {
             console.error("Modal Rendering Error:", error);
@@ -148,13 +154,22 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                             <Ticket size={20} />
                             <span className="text-xl font-bold">{tickets}</span>
                         </div>
+
+                        {currentStageConfig.mechanics.specialization && (
+                            <div className="flex items-center gap-2 text-blue-300 ml-4 border-l border-slate-600 pl-4">
+                                <Layers size={20} />
+                                <span className={`text-xl font-bold ${new Set(inventory.filter(i => i).map(i => i.name)).size >= 7 ? 'text-red-400 animate-pulse' : ''}`}>
+                                    {new Set(inventory.filter(i => i).map(i => i.name)).size}/7
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600">
                             <Flag size={14} className="text-purple-400" />
                             <span className="text-xs font-bold text-slate-300">{currentStageConfig.name}</span>
-                            <span className="text-sm font-black text-purple-200">{mainlineProgress}/5</span>
+                            <span className="text-sm font-black text-purple-200">{mainlineProgress}/{config.stages.length}</span>
                         </div>
 
                         <div className="flex flex-col items-end">
@@ -283,16 +298,8 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                         inventory={inventory}
                                         hasSkill={hasSkill}
                                         onDraw={handleDraw}
-                                        onMouseEnter={(p) => {
-                                            if (p.type !== 'mainline') {
-                                                state.setHoveredPoolId(p.originalId || p.id);
-                                                state.setHoveredPoolItemNames(p.items.map(i => i.name));
-                                            }
-                                        }}
-                                        onMouseLeave={() => {
-                                            state.setHoveredPoolId(null);
-                                            state.setHoveredPoolItemNames([]);
-                                        }}
+                                        onMouseEnter={handlePoolHover}
+                                        onMouseLeave={handlePoolLeave}
                                         isHovered={hoveredPoolId === (pool.originalId || pool.id)}
                                         relevantRequirements={relevantRequirements}
                                     />
@@ -402,7 +409,18 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
 
                     {/* Status Bar */}
                     <div className="flex justify-between items-center mb-2 px-2 max-w-3xl mx-auto">
-                        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">背包栏位 ({inventory.length}/{maxInventorySize})</h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">背包栏位 ({inventory.length}/{maxInventorySize})</h2>
+                            {!pendingItem && !isSubmitMode && !isRecycleMode && !selectionMode && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleSortInventory(); }}
+                                    title="一键整理: 按种类>来源>稀有度排序"
+                                    className="p-1 -my-1 hover:bg-slate-200 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                                >
+                                    <ListOrdered size={16} />
+                                </button>
+                            )}
+                        </div>
                         {selectedSlot !== null && !pendingItem && !isSubmitMode && !isRecycleMode && !selectionMode && (
                             <span className="text-xs font-bold text-blue-500 animate-pulse bg-blue-50 px-2 py-1 rounded flex items-center gap-2">
                                 <Hand size={14} /> 整理模式
@@ -507,6 +525,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                         canSynthesize={canSynthesize}
                                         isNeededForOrder={isNeeded}
                                         isMaxSatisfied={isMaxSatisfied}
+                                        isOverloadTarget={pendingItem?.isOverload && item && item.name === hoveredItemName}
 
                                         onClick={handleSlotClick}
                                         onMouseEnter={(i, item) => { state.setHoveredSlotIndex(i); if (item) state.setHoveredItemName(item.name); }}
@@ -527,7 +546,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [] }) => {
                                     <div className="flex justify-between items-center border-b border-red-100 pb-2">
                                         <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
                                             <AlertCircle size={16} />
-                                            <span>背包已满！待处理队列 ({pendingQueue.length + 1})</span>
+                                            <span>{pendingItem.isOverload ? '种类过载：点击下方物品清除同类！' : `背包已满！待处理队列 (${pendingQueue.length + 1})`}</span>
                                         </div>
                                         <div className="text-xs text-slate-400">
                                             按顺序处理

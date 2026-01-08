@@ -10,11 +10,11 @@ import {
 } from '../utils/helpers';
 import { MAINLINE_ITEMS, SKILL_DEFINITIONS } from '../data/constants';
 
-export const useGameLogic = (config, initialSkills = [], onReset) => {
+export const useGameLogic = (config, initialSkills = [], onReset, initialProgress = 0) => {
     const [gold, setGold] = useState(config.global.initialGold);
     const [tickets, setTickets] = useState(config.global.initialTickets);
 
-    const [mainlineProgress, setMainlineProgress] = useState(0);
+    const [mainlineProgress, setMainlineProgress] = useState(initialProgress);
 
     const currentStageConfig = config.stages[mainlineProgress] || config.stages[config.stages.length - 1];
     const maxInventorySize = currentStageConfig.inventorySize;
@@ -69,7 +69,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
     }, [initialSkills]);
 
     useEffect(() => {
-        if (mainlineProgress < 5) {
+        if (mainlineProgress < config.stages.length) {
             setMainlineOrder(generateMainlineOrder(mainlineProgress, config, currentStageConfig));
         } else {
             setMainlineOrder(null);
@@ -93,7 +93,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         let tempPools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
 
         const mainlineChance = config.global.mainlineChance !== undefined ? config.global.mainlineChance : 0.5;
-        const canSpawnMainline = tickets >= 10 && Math.random() < mainlineChance && mainlineProgress < 5;
+        const canSpawnMainline = tickets >= 10 && Math.random() < mainlineChance && mainlineProgress < config.stages.length;
 
         let targetMainlineItem = null;
 
@@ -122,7 +122,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
 
             if (type === 'mainline' && targetMainlineItem) {
                 selectedPool = {
-                    id: `mainline_pool_${targetMainlineItem.id}_${Date.now()}`,
+                    id: `mainline_pool_${targetMainlineItem.id}`,
                     name: `${targetMainlineItem.name}池`,
                     type: 'mainline',
                     targetItem: targetMainlineItem,
@@ -151,7 +151,8 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
 
                     selectedPool = JSON.parse(JSON.stringify(tempPools[selectedIndex]));
                     selectedPool.originalId = selectedPool.id;
-                    selectedPool.id = `${selectedPool.id}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+                    // Stable ID to prevent flickering
+                    selectedPool.id = selectedPool.originalId;
 
                     selectedPool.items = selectedPool.items.slice(0, currentStageConfig.poolSize);
 
@@ -172,6 +173,11 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                 } else {
                     selectedPool.cost = currentStageConfig.fixedPrice !== null ? currentStageConfig.fixedPrice : 1;
                 }
+
+                // Stage 1 Volatility: Random cost 1-4
+                if (currentStageConfig.mechanics.volatility) {
+                    selectedPool.cost = Math.floor(Math.random() * 4) + 1;
+                }
             }
 
             if (selectedPool) result.push(selectedPool);
@@ -179,12 +185,26 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         return result;
     };
 
-    const refreshPools = () => {
+    const applyEntropy = (inv) => {
+        if (!currentStageConfig.mechanics.entropy) return inv;
+        return inv.map(item => {
+            if (!item || item.decay === undefined) return item;
+            return { ...item, decay: item.decay - 1 };
+        });
+    };
+
+    const refreshPools = (tick = false) => {
         setActivePools(generateActivePools());
+        if (tick && currentStageConfig.mechanics.entropy) {
+            setInventory(prev => prev.map(item => {
+                if (!item || item.decay === undefined) return item;
+                return { ...item, decay: item.decay - 1 };
+            }));
+        }
     };
 
     useEffect(() => {
-        refreshPools();
+        refreshPools(false);
     }, [config, mainlineProgress]);
 
     const triggerSkillSelection = () => {
@@ -273,7 +293,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                     isSatisfied = false;
                     break;
                 }
-                const matchIndex = availableItems.findIndex(item => item.rarity.bonus >= req.requiredRarity.bonus);
+                const matchIndex = availableItems.findIndex(item => (item.rarity.bonus >= req.requiredRarity.bonus && (!item.decay || item.decay > 0)));
                 if (matchIndex === -1) {
                     isSatisfied = false;
                     break;
@@ -327,16 +347,35 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
     useEffect(() => {
         if (!pendingItem && pendingQueue.length > 0) {
             const nextItem = pendingQueue[0];
-            setPendingQueue(prev => prev.slice(1));
 
-            if (inventory.length < maxInventorySize) {
+            // Check for Stage 2 Overload (Specialization)
+            let isOverload = false;
+            if (currentStageConfig.mechanics.specialization) {
+                const uniqueNames = new Set(inventory.map(i => i.name));
+                if (uniqueNames.size >= 7 && !uniqueNames.has(nextItem.name)) {
+                    isOverload = true;
+                }
+            }
+
+            if (!isOverload && inventory.length < maxInventorySize) {
+                // Safe to add
+                setPendingQueue(prev => prev.slice(1));
                 setInventory(prev => [...prev, nextItem]);
             } else {
+                // Must handle as pending (either full or overload)
+                // We consume it from queue and make it the active pendingItem
+                setPendingQueue(prev => prev.slice(1));
+
+                if (isOverload) {
+                    nextItem.isOverload = true;
+                    showToast("库存种类过载！请选择一种物品进行批量替换，或丢弃新物品。", "warning");
+                }
+
                 setPendingItem(nextItem);
                 setSelectedSlot(null);
             }
         }
-    }, [pendingItem, pendingQueue, inventory.length, selectionMode, maxInventorySize]);
+    }, [pendingItem, pendingQueue, inventory, maxInventorySize, currentStageConfig]);
 
     const createItem = (pool, itemTemplate, affixKey = null) => {
         const rarity = rollRarity(config, affixKey, gold, hasSkill, skillState, currentStageConfig);
@@ -345,14 +384,18 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             uid: Math.random().toString(36).substr(2, 9),
             poolName: pool.name,
             rarity: rarity,
-            sterile: affixKey === 'hardened'
+            sterile: affixKey === 'hardened',
+            decay: currentStageConfig.mechanics.entropy ? 40 : undefined
         };
+
     };
 
-    const handleIncomingItems = (items) => {
+
+    const handleIncomingItems = (newItems, overrideInventory = null) => {
+        // Negotiator Skill Check
         if (hasSkill('negotiator')) {
             let triggered = false;
-            items.forEach(item => {
+            newItems.forEach(item => {
                 if (item.rarity.bonus >= 0.4) triggered = true;
             });
             if (triggered) {
@@ -361,17 +404,72 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             }
         }
 
-        const queue = [...items];
-        const freeSlots = maxInventorySize - inventory.length;
+        let currentInventory = overrideInventory ? [...overrideInventory] : [...inventory];
+        let remainingQueue = [];
+        let overloadTriggered = false;
 
-        const toAdd = queue.splice(0, freeSlots);
-        if (toAdd.length > 0) {
-            setInventory(prev => [...prev, ...toAdd]);
+        // Process items one by one
+        for (let i = 0; i < newItems.length; i++) {
+            const item = newItems[i];
+
+            // 1. Check Overload (if enabled)
+            if (currentStageConfig.mechanics.specialization && !overloadTriggered) {
+                const uniqueNames = new Set(currentInventory.map(invItem => invItem ? invItem.name : null).filter(n => n !== null));
+                // Check if adding this NEW type would exceed limit
+                if (uniqueNames.size >= 7 && !uniqueNames.has(item.name)) {
+                    item.isOverload = true;
+                    overloadTriggered = true;
+
+                    if (!pendingItem) {
+                        setPendingItem(item);
+                        showToast("库存种类过载！请选择一种物品进行批量替换，或丢弃新物品。", "warning");
+                    } else {
+                        remainingQueue.push(item);
+                    }
+                    continue; // Skip adding to inventory
+                }
+            }
+
+            // 2. Check if we are blocked by previous overload or full pending queue
+            if (overloadTriggered || pendingItem) {
+                remainingQueue.push(item);
+                continue;
+            }
+
+            // 3. Add to Inventory (Find Slot or Append)
+            let slotIndex = -1;
+            const existingNullIndex = currentInventory.indexOf(null);
+
+            if (existingNullIndex !== -1) {
+                slotIndex = existingNullIndex;
+            }
+
+            if (slotIndex !== -1) {
+                currentInventory[slotIndex] = item;
+            } else if (currentInventory.length < maxInventorySize) {
+                // Dynamic growth if array is not full size yet
+                currentInventory.push(item);
+            } else {
+                // No space
+                if (!pendingItem) {
+                    setPendingItem(item);
+                    showToast("背包已满！", "warning");
+                } else {
+                    remainingQueue.push(item);
+                }
+            }
         }
 
-        if (queue.length > 0) {
-            setPendingQueue(prev => [...prev, ...queue]);
+        // Apply state updates
+        // Since we modify currentInventory locally (which is either a clone of 'inventory' or 'overrideInventory'),
+        // and 'overrideInventory' (if passed) already had entropy applied by the caller if needed,
+        // we just need to commit the new state.
+
+        if (remainingQueue.length > 0) {
+            setPendingQueue(prev => [...prev, ...remainingQueue]);
         }
+
+        setInventory(currentInventory);
     };
 
     const handleMainlineDraw = (pool) => {
@@ -493,7 +591,12 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         }
 
         setSkillState(newSkillState);
-        handleIncomingItems(itemsToProcess);
+
+        // Apply Entropy (Time passes on draw)
+        const decayedInventory = currentStageConfig.mechanics.entropy ? applyEntropy(inventory) : [...inventory];
+
+        handleIncomingItems(itemsToProcess, decayedInventory);
+
         refreshPools();
     };
 
@@ -563,10 +666,12 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         }
 
         if (modalContent?.actualItem) {
-            handleIncomingItems([modalContent.actualItem]);
+            // Apply Entropy (Time passes)
+            const decayedInventory = currentStageConfig.mechanics.entropy ? applyEntropy(inventory) : [...inventory];
+            handleIncomingItems([modalContent.actualItem], decayedInventory);
         }
         setDrawCount(prev => prev + 1);
-        refreshPools();
+        refreshPools(false);
         setModalContent(null);
     };
 
@@ -582,7 +687,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             const newItem = createItem(pool, selectedItem, pool.affixKey);
             setDrawCount(prev => prev + 1);
             handleIncomingItems([newItem]);
-            refreshPools();
+            refreshPools(false);
             setSelectionMode(null);
         }
     };
@@ -607,9 +712,14 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             }
 
             const pool = selectionMode.pool;
-            const newInv = [...inventory];
-            newInv.splice(index, 1);
-            setInventory(newInv);
+
+            // Apply Entropy (Time passes)
+            const decayedInv = currentStageConfig.mechanics.entropy ? applyEntropy(inventory) : [...inventory];
+
+            // Remove item (set to null) from DECAYED inventory
+            decayedInv[index] = null;
+
+            // No intermediate setInventory needed, handleIncomingItems will set it.
 
             let candidates = pool.items.filter(i => i.name !== consumedItem.name);
             if (candidates.length === 0) candidates = pool.items;
@@ -635,11 +745,12 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                 uid: Math.random().toString(36).substr(2, 9),
                 poolName: pool.name,
                 rarity: newRarity,
-                sterile: consumedItem.sterile
+                sterile: consumedItem.sterile,
+                decay: currentStageConfig.mechanics.entropy ? 40 : undefined
             };
 
             setDrawCount(prev => prev + 1);
-            handleIncomingItems([newItem]);
+            handleIncomingItems([newItem], decayedInv);
             refreshPools();
             setSelectionMode(null);
             return;
@@ -677,14 +788,36 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
                 const upgradedItem = { ...targetItem, rarity: nextRarity, uid: Math.random().toString(36).substr(2, 9) };
                 const newInventory = [...inventory];
                 newInventory[index] = upgradedItem;
+                newInventory[index] = upgradedItem;
                 setInventory(newInventory);
                 setPendingItem(null);
                 return;
             }
+
+            if (pendingItem.isOverload) {
+                const targetName = targetItem.name;
+                const newInventory = inventory.filter(i => i.name !== targetName);
+                // Calculate refund for cleared items
+                const clearedItems = inventory.filter(i => i.name === targetName);
+                const recycleValue = clearedItems.reduce((acc, i) => acc + (i.rarity.recycleValue || 0), 0);
+                if (recycleValue > 0) setGold(prev => prev + recycleValue);
+
+                const itemToAdd = { ...pendingItem };
+                delete itemToAdd.isOverload;
+                newInventory.push(itemToAdd);
+
+                setInventory(newInventory); // No entropy applied on overload resolution
+
+                setPendingItem(null);
+                // setDrawCount? Maybe not, strictly. But it changes state.
+                return;
+            }
+
             const recycleGain = targetItem.rarity.recycleValue;
             if (recycleGain > 0) setGold(prev => prev + recycleGain);
 
             const newInventory = [...inventory];
+            newInventory[index] = pendingItem;
             newInventory[index] = pendingItem;
             setInventory(newInventory);
             setPendingItem(null);
@@ -704,6 +837,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             const targetItem = inventory[index];
 
             if (targetItem && !targetItem.sterile && !sourceItem.sterile &&
+                (!targetItem.decay || targetItem.decay > 0) && (!sourceItem.decay || sourceItem.decay > 0) &&
                 sourceItem.name === targetItem.name &&
                 sourceItem.rarity.id === targetItem.rarity.id &&
                 sourceItem.rarity.id !== 'mythic') {
@@ -749,6 +883,10 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
     const handleDiscardNew = () => {
         const recycleGain = pendingItem.rarity.recycleValue;
         if (recycleGain > 0) setGold(prev => prev + recycleGain);
+
+        // Discarding does NOT consume durability (only draws do)
+        // setInventory(prev => applyEntropy(prev));
+
         setPendingItem(null);
         setSelectedSlot(null);
     };
@@ -763,6 +901,8 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
 
         setGold(prev => prev - config.global.refreshCost);
         setOrders(Array(currentStageConfig.orderSlots).fill(null).map(() => generateOrder(allNormalItems, config, hasSkill, currentStageConfig)));
+        // Refreshing does not consume durability
+        // setInventory(prev => applyEntropy(prev));
     };
 
     const handleRefreshSingleOrder = (index) => {
@@ -788,6 +928,8 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         const newOrders = [...orders];
         newOrders[index] = newOrder;
         setOrders(newOrders);
+        // Refreshing does not consume durability
+        // setInventory(prev => applyEntropy(prev));
     };
 
     const handleOrderClick = (orderIndex, isMainline = false) => {
@@ -890,7 +1032,7 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             const nextProgress = mainlineProgress + 1;
             setMainlineProgress(nextProgress);
 
-            if (nextProgress >= 5) {
+            if (nextProgress >= 4) {
                 setModalContent({
                     title: "恭喜通关！",
                     item: { name: '游戏胜利', icon: '🏆', rarity: { color: 'bg-yellow-500', name: 'VICTORY', starColor: 'text-yellow-200' } },
@@ -965,36 +1107,61 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
         }
     };
 
+    const handleSortInventory = () => {
+        if (pendingItem || isSubmitMode || isRecycleMode || selectionMode) return;
+
+        setInventory(prev => {
+            const validItems = prev.filter(i => i !== null);
+            validItems.sort((a, b) => {
+                // 1. Name (Primary)
+                const nameDiff = a.name.localeCompare(b.name, 'zh-CN');
+                if (nameDiff !== 0) return nameDiff;
+
+                // 2. Pool Name (Secondary)
+                const poolDiff = (a.poolName || '').localeCompare(b.poolName || '', 'zh-CN');
+                if (poolDiff !== 0) return poolDiff;
+
+                // 3. Rarity (Tertiary - Descending)
+                return (b.rarity.bonus || 0) - (a.rarity.bonus || 0);
+            });
+
+            const newInv = Array(maxInventorySize).fill(null);
+            for (let i = 0; i < validItems.length; i++) {
+                newInv[i] = validItems[i];
+            }
+            return newInv;
+        });
+        showToast("背包已整理", "success");
+    };
+
+    const handlePoolHover = (pool) => {
+        if (pool.type !== 'mainline') {
+            setHoveredPoolId(pool.originalId || pool.id);
+            setHoveredPoolItemNames(pool.items.map(i => i.name));
+        }
+    };
+
+    const handlePoolLeave = () => {
+        setHoveredPoolId(null);
+        setHoveredPoolItemNames([]);
+    };
+
     return {
         state: {
-            gold, setGold,
-            tickets, setTickets,
-            mainlineProgress, setMainlineProgress,
-            currentStageConfig,
-            maxInventorySize,
-            drawCount, setDrawCount,
-            activePools, setActivePools,
-            orders, setOrders,
-            mainlineOrder, setMainlineOrder,
-            inventory, setInventory,
-            pendingItem, setPendingItem,
-            pendingQueue, setPendingQueue,
-            selectedSlot, setSelectedSlot,
-            hoveredPoolId, setHoveredPoolId,
-            hoveredItemName, setHoveredItemName,
-            hoveredSlotIndex, setHoveredSlotIndex,
-            hoveredPoolItemNames, setHoveredPoolItemNames,
-            isSubmitMode, setIsSubmitMode,
-            isRecycleMode, setIsRecycleMode,
-            selectedIndices, setSelectedIndices,
-            modalContent, setModalContent,
-            selectionMode, setSelectionMode,
-            skills, setSkills,
-            skillSelectionCandidates, setSkillSelectionCandidates,
-            skillState, setSkillState,
-            toast, setToast,
-            maxRequirementRarityMap,
-            satisfiableOrders,
+            gold, tickets,
+            mainlineProgress, currentStageConfig, maxInventorySize,
+            drawCount,
+            activePools,
+            orders, mainlineOrder,
+            inventory,
+            pendingItem, pendingQueue,
+            selectedSlot,
+            hoveredPoolId, hoveredItemName, hoveredSlotIndex, hoveredPoolItemNames,
+            isSubmitMode, isRecycleMode, selectedIndices,
+            modalContent, selectionMode,
+            skills, skillSelectionCandidates,
+            toast,
+            satisfiableOrders: [],
             totalRecycleValue,
             selectedItemNames
         },
@@ -1016,6 +1183,9 @@ export const useGameLogic = (config, initialSkills = [], onReset) => {
             handleConfirmRecycle,
             toggleSubmitMode,
             toggleRecycleMode,
+            handleSortInventory,
+            handlePoolHover,
+            handlePoolLeave,
             refreshPools
         },
         helpers: {
