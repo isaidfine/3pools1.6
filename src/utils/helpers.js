@@ -51,6 +51,10 @@ export const rollRequirementRarity = (config, currentStageConfig) => {
         accumulated += weights.epic;
         if (r <= accumulated) return config.rarity.find(r => r.id === 'epic');
     }
+    if (weights.legendary > 0) {
+        accumulated += weights.legendary;
+        if (r <= accumulated) return config.rarity.find(r => r.id === 'legendary');
+    }
 
     // Fallback to common
     return config.rarity.find(r => r.id === 'common');

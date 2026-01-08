@@ -415,10 +415,10 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                             {!pendingItem && !isSubmitMode && !isRecycleMode && !selectionMode && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleSortInventory(); }}
-                                    title="一键整理: 按种类>来源>稀有度排序"
-                                    className="p-1 -my-1 hover:bg-slate-200 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                                    className="flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm text-slate-600 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
                                 >
-                                    <ListOrdered size={16} />
+                                    <ListOrdered size={14} />
+                                    <span>一键整理</span>
                                 </button>
                             )}
                         </div>
@@ -511,6 +511,16 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                 const isNeeded = matchedReqs.length > 0;
                                 const isMaxSatisfied = isNeeded && matchedReqs.some(r => item.rarity.bonus >= r.requiredRarity.bonus);
 
+                                // Upgrade Badge Logic: Check if there is ANOTHER item in inventory that matches this one for synthesis
+                                const hasUpgradePair = item && !item.sterile && inventory.some((other, otherIdx) =>
+                                    otherIdx !== idx && // Not self
+                                    other && // Exists
+                                    !other.sterile && // Not sterile
+                                    other.name === item.name && // Same name
+                                    other.rarity.id === item.rarity.id && // Same rarity
+                                    item.rarity.id !== 'mythic' // Not max level (mythic usually can't synth)
+                                );
+
                                 return (
                                     <InventorySlot
                                         key={idx}
@@ -526,6 +536,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                         canSynthesize={canSynthesize}
                                         isNeededForOrder={isNeeded}
                                         isMaxSatisfied={isMaxSatisfied}
+                                        hasUpgradePair={hasUpgradePair} // Pass the new prop
                                         isOverloadTarget={pendingItem?.isOverload && item && item.name === hoveredItemName}
 
                                         onClick={handleSlotClick}

@@ -786,7 +786,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
 
                 const nextRarity = getNextRarity(targetItem.rarity.id, config);
 
-                if (currentStageConfig.rarityWeights[nextRarity.id] <= 0) {
+                if (currentStageConfig.rarityWeights[nextRarity.id] <= 0 && nextRarity.id !== 'mythic') {
                     showToast(`受限于当前时代工艺，无法合成【${nextRarity.name}】物品！`, 'error');
                     return;
                 }
@@ -1163,6 +1163,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             pendingItem, pendingQueue,
             selectedSlot,
             hoveredPoolId, hoveredItemName, hoveredSlotIndex, hoveredPoolItemNames,
+            setHoveredPoolId, setHoveredItemName, setHoveredSlotIndex, setHoveredPoolItemNames,
             isSubmitMode, isRecycleMode, selectedIndices,
             modalContent, selectionMode,
             skills, skillSelectionCandidates,

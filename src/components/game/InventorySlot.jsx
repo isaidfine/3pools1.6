@@ -1,5 +1,4 @@
-import React from 'react';
-import { Sparkles, Trash2, ArrowLeftRight, Check, ChevronsUp, X, Ban, ShoppingBag, Lock, Star } from 'lucide-react';
+import { Sparkles, Trash2, ArrowLeftRight, Check, ChevronsUp, X, Ban, ShoppingBag, Lock, Star, CircleArrowUp } from 'lucide-react';
 
 export const InventorySlot = ({
     item,
@@ -21,6 +20,7 @@ export const InventorySlot = ({
     // Derived state for visuals
     isNeededForOrder,
     isMaxSatisfied,
+    hasUpgradePair, // New Prop
 
     // Specific mechanic flags
     canSynthesize,
@@ -40,40 +40,14 @@ export const InventorySlot = ({
 
     // Determine Action Type for Overlay
     if (!isMultiSelectMode && !isTradeInMode && isHovered && isTarget) {
-        // Logic from legacy code needs access to full inventory or parent passing down the context
-        // Since we accepted `canSynthesize` as prop, we can simplify but the logic was:
-        // if (pendingItem) -> if (params) synthesize else replace
-        // if (selectedSlot) -> if (params) synthesize else swap
-
-        // We'll rely on props passed from GameCore for `actionType` or derive it if we have enough info.
-        // Current props: canSynthesize (boolean), isTarget (boolean).
-
-        // Let's infer actionType from isTarget + canSynthesize + external context
+        // ... (removed obsolete comment blocks for brevity, logic resides in return)
         if (canSynthesize) {
             actionType = 'synthesize';
-        } else if (isReference) { // Is reference for trade in? No, waits.
-            // no op
+        } else if (isReference) {
         } else {
-            // If we have a pending item (how do we know? isPendingSlot isn't it)
-            // We need a way to know if we are holding something.
-            // In GameCore we have `pendingItem` and `selectedSlot`.
-            // If `isTarget` is true, it means we have something selected (slot or pending).
-
-            // We need to differentiate 'switch position' vs 'replace pending'.
-            // However, for visual purposes 'swap' icon is fine for both generally, 
-            // unless it's pending replacing an item, which gives money back ('replace').
-            // To be precise we might need an extra prop `actionType` from parent.
-
-            // Fallback visual:
             actionType = 'swap';
         }
     }
-
-    // We will assume the parent passes specific `actionType` if they want precise 'replace' vs 'swap'
-    // But currently GameCore calculates `canSynthesize`.
-    // Let's add an explicit `actionType` prop to InventorySlot to be safe, but for now modify logic:
-    // If canSynthesize is true, show upgrade.
-    // If isTarget is true and NOT synthesize, show swap/interaction.
 
     const isDisabled = (isMultiSelectMode && !item) || (isReference && (!item || item.isMainlineItem)) || isPendingSlot;
 
@@ -83,7 +57,6 @@ export const InventorySlot = ({
             onMouseEnter={() => onMouseEnter(index, item)}
             onMouseLeave={onMouseLeave}
             aria-disabled={isDisabled}
-            title={item ? `${item.rarity?.name || ''} ${item.name}${item.sterile ? ' (绝育)' : ''}` : ''}
             className={`
                 relative aspect-square rounded-xl border-2 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 select-none overflow-visible
                 ${item
@@ -128,6 +101,15 @@ export const InventorySlot = ({
                         </div>
                     )}
 
+                    {/* Upgrade Badge (New) */}
+                    {hasUpgradePair && !isPendingSlot && !item.sterile && (
+                        <div className="absolute top-0 right-0 p-0.5 -mt-1 -mr-1 z-20 animate-bounce">
+                            <div className="bg-purple-100/90 rounded-full p-0.5 border border-purple-300 shadow-sm text-purple-600">
+                                <CircleArrowUp size={12} strokeWidth={3} />
+                            </div>
+                        </div>
+                    )}
+
                     {/* Entropy Decay Indicator */}
                     {item.decay !== undefined && (
                         <>
@@ -161,37 +143,34 @@ export const InventorySlot = ({
                         </div>
                     )}
 
-                    {/* Passive Hint (Upgrade Available) */}
-                    {/* Logic moved to parent usually, but if canSynthesize passed as prop unrelated to target, we show hint */}
-                    {/* For now simplified: if isTarget is false but canSynthesize is true, it implies "could synthesize" maybe? 
-                        Actually "canSynthesize" prop usually means "if you drop here". 
-                        The passive "bouncing arrow" logic is distinct. 
-                        Let's rely on `showPassiveHint` prop if we add it, or re-implement logic here.
-                    */}
+                    {/* Action Overlays Reworked */}
 
-                    {/* Action Overlays */}
-                    {/* Overload Action Overlay (Shows on all matching items) */}
-                    {!isMultiSelectMode && !isSelectionMode && isOverloadTarget && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/60 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
-                            <Trash2 size={32} className="text-white drop-shadow-md" />
-                            <span className="text-white text-[10px] font-black uppercase tracking-wider text-center px-1">回收</span>
+                    {/* Priority 1: Synthesize (Upgrade) - Only on direct hover */}
+                    {(!isSelectionMode && isHovered && isTarget && canSynthesize) && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-400/80 rounded-lg transition-opacity z-10 backdrop-blur-[1px] animate-pulse">
+                            <ChevronsUp size={36} className="text-white drop-shadow-md" />
+                            <span className="text-white text-xs font-black uppercase tracking-wider">升级</span>
                         </div>
                     )}
 
-                    {/* Standard Action Overlays (Hover only) */}
-                    {!isMultiSelectMode && !isSelectionMode && isHovered && isTarget && !isOverloadTarget && (
-                        <>
-                            {canSynthesize ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-400/80 rounded-lg transition-opacity z-10 backdrop-blur-[1px] animate-pulse">
-                                    <ChevronsUp size={36} className="text-white drop-shadow-md" />
-                                    <span className="text-white text-xs font-black uppercase tracking-wider">升级</span>
-                                </div>
-                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center bg-blue-500/40 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
-                                    <ArrowLeftRight size={32} className="text-white drop-shadow-md" />
-                                </div>
+                    {/* Priority 2: Overload (Recycle) - Broad highlight, but suppressed by Synthesize */}
+                    {(!isSelectionMode && isOverloadTarget && !(isHovered && canSynthesize)) && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/60 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
+                            <Trash2 size={32} className="text-white drop-shadow-md" />
+                            <span className="text-white text-[10px] font-black uppercase tracking-wider text-center px-1">回收</span>
+                            {['rare', 'epic', 'legendary', 'mythic'].includes(item.rarity?.id) && (
+                                <span className="text-amber-200 text-xs font-bold whitespace-nowrap drop-shadow-md">
+                                    +{item.rarity.recycleValue || 0} G
+                                </span>
                             )}
-                        </>
+                        </div>
+                    )}
+
+                    {/* Priority 3: Swap (Standard) - Only on direct hover, lowest priority */}
+                    {(!isMultiSelectMode && !isSelectionMode && isHovered && isTarget && !canSynthesize && !isOverloadTarget) && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-blue-500/40 rounded-lg transition-opacity z-10 backdrop-blur-[1px]">
+                            <ArrowLeftRight size={32} className="text-white drop-shadow-md" />
+                        </div>
                     )}
                 </>
             )}
