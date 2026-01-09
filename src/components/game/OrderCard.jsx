@@ -65,7 +65,7 @@ const OrderCardBase = ({
                         {isMainline ? (
                             <div className="flex flex-col">
                                 <span className="text-xs font-black text-yellow-700 uppercase tracking-wider flex items-center gap-1 bg-white/50 px-2 py-0.5 rounded-full border border-yellow-200">
-                                    <Crown size={12} /> 主线任务 {order.level}/5
+                                    <Crown size={12} /> 主线订单
                                 </span>
                             </div>
                         ) : (

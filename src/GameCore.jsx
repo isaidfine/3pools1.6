@@ -166,10 +166,12 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600">
-                            <Flag size={14} className="text-purple-400" />
-                            <span className="text-xs font-bold text-slate-300">{currentStageConfig.name}</span>
-                            <span className="text-sm font-black text-purple-200">{mainlineProgress}/{config.stages.length}</span>
+                        <div className="flex flex-col items-end mr-4">
+                            <div className="flex items-center gap-1.5">
+                                <Flag size={14} className="text-purple-400" />
+                                <span className="text-sm font-bold text-slate-200">{currentStageConfig.name}</span>
+                            </div>
+                            <span className="text-[10px] font-medium text-purple-300 opacity-80">{currentStageConfig.mechanicDesc}</span>
                         </div>
 
                         <div className="flex flex-col items-end">

@@ -162,7 +162,7 @@ export const generateMainlineOrder = (level, config, currentStageConfig) => {
         remainingRefreshes: 0,
         isMainline: true,
         level: level + 1,
-        name: `主线进度 ${level + 1}/5`
+        name: `主线订单`
     };
 };
 

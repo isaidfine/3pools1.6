@@ -6,11 +6,12 @@ import {
 export const ResetIcon = RotateCcw;
 
 // --- 阶段配置定义 ---
-// Based on 1.8.json
+// Based on 1.8.json with mechanicDesc added
 export const INITIAL_STAGE_CONFIG = [
     {
         "id": 0,
         "name": "阶段 1",
+        "mechanicDesc": "基础机制生效",
         "desc": "普通模式 (Base)",
         "inventorySize": 10,
         "orderSlots": 4,
@@ -56,6 +57,7 @@ export const INITIAL_STAGE_CONFIG = [
     {
         "id": 1,
         "name": "阶段 2",
+        "mechanicDesc": "奖池的价格随机波动",
         "desc": "波动模式 (Volatility)",
         "inventorySize": 10,
         "orderSlots": 4,
@@ -102,6 +104,7 @@ export const INITIAL_STAGE_CONFIG = [
     {
         "id": 2,
         "name": "阶段 3",
+        "mechanicDesc": "背包内物品种类数量受限",
         "desc": "专业化模式 (Specialization)",
         "inventorySize": 20,
         "orderSlots": 4,
@@ -148,6 +151,7 @@ export const INITIAL_STAGE_CONFIG = [
     {
         "id": 3,
         "name": "阶段 4",
+        "mechanicDesc": "物品随时间腐烂衰变",
         "desc": "熵增模式 (Entropy)",
         "inventorySize": 10,
         "orderSlots": 4,
@@ -194,7 +198,6 @@ export const INITIAL_STAGE_CONFIG = [
 ];
 
 // --- 技能定义 ---
-// Keep original skills but will check enabled ids
 export const SKILL_DEFINITIONS = [
     { id: 'poverty_relief', name: '贫困救济', desc: '持有金币 < 5 时，完成订单的金币奖励额外 +10。', Icon: Gift, type: 'gold', color: 'text-yellow-600 bg-yellow-100' },
     { id: 'lucky_7', name: '幸运 7', desc: '当前金币数量的尾数为 7 时，抽取传说物品的概率翻倍。', Icon: Star, type: 'luck', color: 'text-green-600 bg-green-100' },
