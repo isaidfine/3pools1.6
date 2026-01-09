@@ -84,7 +84,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
         } else if (orders.length === 0) {
             setOrders(Array(currentStageConfig.orderSlots).fill(null).map(() => generateOrder(allNormalItems, config, hasSkill, currentStageConfig)));
         }
-    }, [config, allNormalItems, currentStageConfig.orderSlots]);
+    }, [config, allNormalItems, currentStageConfig.orderSlots, orders.length]);
 
     const generateActivePools = () => {
         const result = [];
@@ -93,7 +93,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
         let tempPools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
 
         const mainlineChance = config.global.mainlineChance !== undefined ? config.global.mainlineChance : 0.5;
-        const canSpawnMainline = tickets >= 10 && Math.random() < mainlineChance && mainlineProgress < config.stages.length;
+        const canSpawnMainline = false; // P2 Refactor: Mainline Pool Disabled
 
         let targetMainlineItem = null;
 
@@ -667,6 +667,20 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
     const handleCloseModal = () => {
         if (modalContent?.type === 'stage_up') {
             setModalContent(null);
+
+            // P2 Refactor: Stage Hard Reset
+            // 1. Clear Inventory
+            setInventory(Array(currentStageConfig.inventorySize).fill(null));
+
+            // 2. Reset Orders (Set to empty, let useEffect regenerate)
+            setOrders([]);
+
+            // 3. Reset Gold
+            setGold(currentStageConfig.initialGold || 0);
+
+            // 4. Remove Tickets
+            setTickets(0);
+
             triggerSkillSelection();
             return;
         }
@@ -1002,15 +1016,15 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             if (rewardType === 'ticket') gainedTickets += finalReward;
 
             if (hasSkill('big_order_expert') && reqCount === 4) {
-                gainedTickets += 10;
-                showToast("【大订单专家】触发：+10奖券");
+                gainedGold += 15;
+                showToast("【大订单专家】触发：+15金币");
             }
 
             if (hasSkill('hard_order_expert')) {
                 const hasHardReq = requirements.some(req => req.requiredRarity.id === 'epic' || req.requiredRarity.id === 'legendary');
                 if (hasHardReq) {
-                    gainedTickets += 15;
-                    showToast("【困难订单专家】触发：+15奖券");
+                    gainedGold += 20;
+                    showToast("【困难订单专家】触发：+20金币");
                 }
             }
 
@@ -1074,14 +1088,14 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             selectedIndices.forEach(idx => {
                 const item = inventory[idx];
                 if (item && item.rarity.bonus >= 0.2) {
-                    if (Math.random() < 0.15) extraTickets += 5;
+                    if (Math.random() < 0.15) extraTickets += 10;
                 }
             });
-            if (extraTickets > 0) showToast(`【炼金术】触发：获得 ${extraTickets} 张奖券！`, 'info');
+            if (extraTickets > 0) showToast(`【炼金术】触发：获得 ${extraTickets} 金币！`, 'info');
         }
 
-        setGold(prev => prev + baseValue);
-        setTickets(prev => prev + extraTickets);
+        setGold(prev => prev + baseValue + extraTickets);
+        // setTickets(prev => prev + extraTickets); // Tickets removed
 
         const newInventory = inventory.filter((_, idx) => !selectedIndices.includes(idx));
         setInventory(newInventory);

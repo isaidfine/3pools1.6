@@ -99,17 +99,14 @@ export const generateOrder = (allNormalItems, config, hasSkill = () => false, cu
 
     const totalReqBonus = requirements.reduce((sum, req) => sum + req.requiredRarity.bonus, 0);
 
-    // 先确定奖励类型，再根据数量分配对应的基础值
-    const rewardType = Math.random() < 0.5 ? 'gold' : 'ticket';
-    let rawBaseReward = 0;
+    // P2 Refactor: Always Gold, Configurable Base
+    const rewardType = 'gold';
 
-    if (count <= 2) {
-        rawBaseReward = rewardType === 'gold' ? 5 : 5;
-    } else if (count === 3) {
-        rawBaseReward = rewardType === 'gold' ? 10 : 15;
-    } else {
-        rawBaseReward = rewardType === 'gold' ? 15 : 20;
-    }
+    // Default fallback if config is missing (compatibility)
+    const defaultBaseRewards = { 2: 7, 3: 10, 4: 15 };
+    const baseRewards = currentStageConfig.baseRewards || defaultBaseRewards;
+
+    const rawBaseReward = baseRewards[count] || 15;
 
     const baseReward = Math.ceil(rawBaseReward * (1 + totalReqBonus));
 
@@ -124,39 +121,24 @@ export const generateOrder = (allNormalItems, config, hasSkill = () => false, cu
 };
 
 export const generateMainlineOrder = (level, config, currentStageConfig) => {
-    if (level >= MAINLINE_ITEMS.length) return null;
+    // P2 Refactor: 2 Random Pools, 1 Item from each, Epic Rarity
+    const pools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
+    const shuffledPools = getRandomItems(pools, 2); // Pick 2 distinct pools
 
-    const targetMainlineItem = MAINLINE_ITEMS[level];
-    const targetPool = config.pools.find(p => p.id === targetMainlineItem.poolId);
-
-    // 修正：确保主线需求的物品存在于被截断的奖池中，且池子类型也是已解锁的
-    const availableItems = targetPool.items.slice(0, currentStageConfig.poolSize);
-    const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
-
-    // 根据阶段设置主线需求的稀有度
-    // 根据阶段设置主线需求的稀有度
-    // const mainlineFillerRarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-    // const targetRarityId = mainlineFillerRarities[level] || 'common';
-    const targetRarityId = 'epic'; // P0 Reversion: Always require Epic
-    const fillerRarity = config.rarity.find(r => r.id === targetRarityId);
-    const mythicRarity = config.rarity.find(r => r.id === 'mythic');
-
-    const req1 = {
-        ...targetMainlineItem,
-        requiredRarity: mythicRarity,
-        isMainlineItem: true
-    };
-
-    const req2 = {
-        ...randomItem,
-        poolId: targetPool.id,
-        poolName: targetPool.name,
-        requiredRarity: fillerRarity
-    };
+    const requirements = shuffledPools.map(pool => {
+        const item = getRandomItems(pool.items, 1)[0]; // Pick 1 random item
+        const epicRarity = config.rarity.find(r => r.id === 'epic');
+        return {
+            ...item,
+            poolId: pool.id,
+            poolName: pool.name,
+            requiredRarity: epicRarity
+        };
+    });
 
     return {
-        id: `mainline_order_${level}`,
-        requirements: [req1, req2],
+        id: `mainline_order_${Math.random().toString(36).substr(2, 9)}`,
+        requirements,
         baseReward: 0,
         rewardType: 'none',
         remainingRefreshes: 0,

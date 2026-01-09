@@ -69,16 +69,21 @@ const OrderCardBase = ({
                                 </span>
                             </div>
                         ) : (
-                            // Normal Order: Show Reward Badge as "Header"
+                            // Normal Order: Show Reward Badge
                             rewardType !== 'none' && (
-                                <div className={`
-                                    flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm shadow-sm
-                                    ${rewardType === 'gold'
-                                        ? 'bg-yellow-400 text-slate-900'
-                                        : 'bg-purple-400 text-white'}
-                                `}>
-                                    <span className="text-lg leading-none">{canSatisfy ? canSatisfy.finalReward : baseReward}</span>
-                                    {rewardType === 'gold' ? <Coins size={16} fill="currentColor" className="opacity-80" /> : <Ticket size={16} fill="currentColor" className="opacity-80" />}
+                                <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm shadow-sm transition-all ${canSatisfy ? 'bg-orange-500 text-white ring-2 ring-orange-200' : 'bg-yellow-400 text-slate-900'}`}>
+                                    {/* Base Reward */}
+                                    <span className="text-lg leading-none">{baseReward}</span>
+
+                                    {/* Actual Reward (if satisfied) */}
+                                    {canSatisfy && (
+                                        <>
+                                            <span className="text-white/80 mx-0.5">→</span>
+                                            <span className="text-xl leading-none text-white drop-shadow-sm">{canSatisfy.finalReward}</span>
+                                        </>
+                                    )}
+
+                                    <Coins size={16} fill="currentColor" className="opacity-80" />
                                     {isSatisfied && <Zap size={14} className="ml-1 text-white animate-pulse" fill="currentColor" />}
                                 </div>
                             )

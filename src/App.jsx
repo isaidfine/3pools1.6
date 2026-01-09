@@ -215,48 +215,81 @@ export default function App() {
                                 </div>
                             </section>
 
-                            {/* 3. 订单数量权重配置 */}
+                            {/* 3. 订单数量权重与奖励配置 */}
                             <section>
-                                <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单所需数量权重 (Order Item Count)</h4>
-                                <div className="text-xs text-slate-500 mb-2">决定一个订单需要多少个物品 (2-4个)。</div>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单数量与奖励配置 (Order Count & Rewards)</h4>
+                                <div className="text-xs text-slate-500 mb-2">配置订单物品数量的权重，以及对应的基础金币奖励。</div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-slate-100 text-slate-500">
                                             <tr>
                                                 <th className="p-2 text-left">阶段名称</th>
-                                                <th className="p-2 text-center w-20">2个</th>
-                                                <th className="p-2 text-center w-20">3个</th>
-                                                <th className="p-2 text-center w-20">4个</th>
+                                                <th className="p-2 text-center w-32">2个物品 (权重 / 奖励)</th>
+                                                <th className="p-2 text-center w-32">3个物品 (权重 / 奖励)</th>
+                                                <th className="p-2 text-center w-32">4个物品 (权重 / 奖励)</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {config.stages.map((stage, sIdx) => (
-                                                <tr key={stage.id} className="border-b hover:bg-slate-50">
-                                                    <td className="p-2 font-bold">{stage.name}</td>
-                                                    {[2, 3, 4].map(count => (
-                                                        <td key={count} className="p-2 text-center">
-                                                            <input
-                                                                type="number"
-                                                                className={`w-16 p-1 border rounded text-center font-mono ${stage.orderCountWeights?.[count] > 0 ? 'bg-white font-bold' : 'bg-slate-50 text-slate-400'}`}
-                                                                value={stage.orderCountWeights?.[count] || 0}
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value) || 0;
-                                                                    const newStages = [...config.stages];
-                                                                    const currentWeights = newStages[sIdx].orderCountWeights || { 2: 0, 3: 0, 4: 0 };
-                                                                    newStages[sIdx] = {
-                                                                        ...newStages[sIdx],
-                                                                        orderCountWeights: {
-                                                                            ...currentWeights,
-                                                                            [count]: val
-                                                                        }
-                                                                    };
-                                                                    setConfig({ ...config, stages: newStages });
-                                                                }}
-                                                            />
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
+                                            {config.stages.map((stage, sIdx) => {
+                                                const counts = [2, 3, 4];
+                                                // Fallback if baseRewards missing (old config)
+                                                const rewards = stage.baseRewards || { 2: 7, 3: 10, 4: 15 };
+
+                                                return (
+                                                    <tr key={stage.id} className="border-b hover:bg-slate-50">
+                                                        <td className="p-2 font-bold">{stage.name}</td>
+                                                        {counts.map(count => (
+                                                            <td key={count} className="p-2 text-center">
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="text-[10px] text-slate-400">权重%</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            className={`w-12 p-1 border rounded text-center font-mono ${stage.orderCountWeights?.[count] > 0 ? 'bg-white font-bold' : 'bg-slate-50 text-slate-400'}`}
+                                                                            value={stage.orderCountWeights?.[count] || 0}
+                                                                            onChange={(e) => {
+                                                                                const val = parseInt(e.target.value) || 0;
+                                                                                const newStages = [...config.stages];
+                                                                                const currentWeights = newStages[sIdx].orderCountWeights || { 2: 0, 3: 0, 4: 0 };
+                                                                                newStages[sIdx] = {
+                                                                                    ...newStages[sIdx],
+                                                                                    orderCountWeights: {
+                                                                                        ...currentWeights,
+                                                                                        [count]: val
+                                                                                    }
+                                                                                };
+                                                                                setConfig({ ...config, stages: newStages });
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="text-[10px] text-yellow-600 font-bold">金币</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            className="w-12 p-1 border border-yellow-200 bg-yellow-50 rounded text-center font-mono text-yellow-700 font-bold"
+                                                                            value={rewards[count] || 0}
+                                                                            onChange={(e) => {
+                                                                                const val = parseInt(e.target.value) || 0;
+                                                                                const newStages = [...config.stages];
+                                                                                const currentRewards = newStages[sIdx].baseRewards || { 2: 7, 3: 10, 4: 15 };
+                                                                                newStages[sIdx] = {
+                                                                                    ...newStages[sIdx],
+                                                                                    baseRewards: {
+                                                                                        ...currentRewards,
+                                                                                        [count]: val
+                                                                                    }
+                                                                                };
+                                                                                setConfig({ ...config, stages: newStages });
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

@@ -150,10 +150,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                             <Coins size={20} />
                             <span className="text-xl font-bold">{gold}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-purple-300">
-                            <Ticket size={20} />
-                            <span className="text-xl font-bold">{tickets}</span>
-                        </div>
+
 
                         {currentStageConfig.mechanics.specialization && (
                             <div className="flex items-center gap-2 text-blue-300 ml-4 border-l border-slate-600 pl-4">
@@ -539,7 +536,12 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                         isNeededForOrder={isNeeded}
                                         isMaxSatisfied={isMaxSatisfied}
                                         hasUpgradePair={hasUpgradePair} // Pass the new prop
-                                        isOverloadTarget={pendingItem?.isOverload && item && item.name === hoveredItemName}
+                                        hasUpgradePair={hasUpgradePair} // Pass the new prop
+                                        // Fix: Show Red Recycle Overlay for ANY pending item replacement logic
+                                        isOverloadTarget={
+                                            (pendingItem?.isOverload && item && item.name === hoveredItemName) ||
+                                            (pendingItem && !pendingItem.isOverload && hoveredSlotIndex === idx)
+                                        }
 
                                         onClick={handleSlotClick}
                                         onMouseEnter={(i, item) => { state.setHoveredSlotIndex(i); if (item) state.setHoveredItemName(item.name); }}
