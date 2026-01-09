@@ -121,20 +121,38 @@ export const generateOrder = (allNormalItems, config, hasSkill = () => false, cu
 };
 
 export const generateMainlineOrder = (level, config, currentStageConfig) => {
-    // P2 Refactor: 2 Random Pools, 1 Item from each, Epic Rarity
-    const pools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
-    const shuffledPools = getRandomItems(pools, 2); // Pick 2 distinct pools
+    // P3 Update: Configurable Mainline Requirements
+    const count = currentStageConfig.mainlineReqCount || 2;
+    const rarityId = currentStageConfig.mainlineReqRarity || 'epic';
+    const targetRarity = config.rarity.find(r => r.id === rarityId) || config.rarity.find(r => r.id === 'epic');
 
-    const requirements = shuffledPools.map(pool => {
-        const item = getRandomItems(pool.items, 1)[0]; // Pick 1 random item
-        const epicRarity = config.rarity.find(r => r.id === 'epic');
-        return {
+    const pools = config.pools.slice(0, currentStageConfig.allowedPoolCount);
+    // Select 'count' random pool items (can be same pool or different, let's keep it diverse if possible, but distinct pools logic was nice)
+    // If count > allowedPoolCount, we must reuse.
+    // Let's just pick 'count' random items from 'allowedPools' entirely? OR pick pools then items?
+    // Previous logic: Pick 2 distinct pools.
+    // New logic: Pick 'count' random items from 'getAllNormalItems' but that might be too broad.
+    // Let's stick to "Pick N random pools (can contain duplicates if needed), then 1 item from each".
+
+    // Actually, picking N distinct pools is better for variety if count <= pools.length.
+
+    const requirements = [];
+    // We need 'count' items.
+    const availablePools = [...pools]; // Copy to shuffle/pick
+
+    // Strategy: Randomly pick 'count' times from available pools.
+    for (let i = 0; i < count; i++) {
+        // Simple random pick to support count > pools.length
+        const randomPool = pools[Math.floor(Math.random() * pools.length)];
+        const item = getRandomItems(randomPool.items, 1)[0];
+
+        requirements.push({
             ...item,
-            poolId: pool.id,
-            poolName: pool.name,
-            requiredRarity: epicRarity
-        };
-    });
+            poolId: randomPool.id,
+            poolName: randomPool.name,
+            requiredRarity: targetRarity
+        });
+    }
 
     return {
         id: `mainline_order_${Math.random().toString(36).substr(2, 9)}`,

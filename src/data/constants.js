@@ -18,6 +18,8 @@ export const INITIAL_STAGE_CONFIG = [
         "allowedPoolCount": 5,
         "fixedPrice": null,
         "initialGold": 20,
+        "mainlineReqCount": 2,
+        "mainlineReqRarity": "epic",
         "orderCountRange": [
             2,
             4
@@ -70,6 +72,8 @@ export const INITIAL_STAGE_CONFIG = [
         "allowedPoolCount": 5,
         "fixedPrice": null,
         "initialGold": 30,
+        "mainlineReqCount": 2,
+        "mainlineReqRarity": "epic",
         "orderCountRange": [
             2,
             4
@@ -118,6 +122,8 @@ export const INITIAL_STAGE_CONFIG = [
         "allowedPoolCount": 5,
         "fixedPrice": null,
         "initialGold": 40,
+        "mainlineReqCount": 2,
+        "mainlineReqRarity": "epic",
         "orderCountRange": [
             2,
             4
@@ -166,6 +172,9 @@ export const INITIAL_STAGE_CONFIG = [
         "allowedPoolCount": 5,
         "fixedPrice": null,
         "initialGold": 50,
+        "mainlineReqCount": 2,
+        "mainlineReqRarity": "epic",
+        "entropyDecayValue": 25,
         "orderCountRange": [
             2,
             4
@@ -208,9 +217,9 @@ export const INITIAL_STAGE_CONFIG = [
 // --- 技能定义 ---
 // Tickets removed, Gold rewards increased
 export const SKILL_DEFINITIONS = [
-    { id: 'poverty_relief', name: '贫困救济', desc: '持有金币 < 5 时，完成订单的金币奖励额外 +10。', Icon: Gift, type: 'gold', color: 'text-yellow-600 bg-yellow-100' },
+    { id: 'poverty_relief', name: '贫困救济', desc: '持有金币 < 5 时，完成订单的金币奖励额外 +5。', Icon: Gift, type: 'gold', color: 'text-yellow-600 bg-yellow-100' },
     { id: 'lucky_7', name: '幸运 7', desc: '当前金币数量的尾数为 7 时，抽取传说物品的概率翻倍。', Icon: Star, type: 'luck', color: 'text-green-600 bg-green-100' },
-    { id: 'alchemy', name: '炼金术', desc: '回收“稀有”及以上品质物品时，15% 概率获得 10 金币。', Icon: Sparkles, type: 'gold', color: 'text-purple-600 bg-purple-100' },
+    { id: 'alchemy', name: '炼金术', desc: '回收“稀有”及以上品质物品时，25% 概率获得 5 金币。', Icon: Sparkles, type: 'gold', color: 'text-purple-600 bg-purple-100' },
     { id: 'vip_discount', name: '贵宾折扣', desc: '“精准”和“有的放矢”词缀的奖池金币消耗减少 1。', Icon: Ticket, type: 'draw', color: 'text-orange-600 bg-orange-100' },
     { id: 'negotiator', name: '谈判专家', desc: '抽到“史诗”或以上品质物品时，所有订单获得 1 次刷新次数。', Icon: ArrowLeftRight, type: 'utility', color: 'text-slate-600 bg-slate-100' },
     { id: 'consolation_prize', name: '安慰奖', desc: '连续抽到 5 个“普通”品质物品后，下次抽奖获得的物品必定是稀有以上品质。', Icon: Check, type: 'luck', color: 'text-teal-600 bg-teal-100' },
@@ -219,8 +228,8 @@ export const SKILL_DEFINITIONS = [
     { id: 'ocd', name: '强迫症', desc: '提交的订单若所有物品属于同一种类，金币奖励翻倍。', Icon: ListOrdered, type: 'order', color: 'text-indigo-600 bg-indigo-100' },
     { id: 'auto_restock', name: '自动补货', desc: '完成任意订单后，下次抽奖获得的物品会多获得 1 个。', Icon: Package, type: 'draw', color: 'text-lime-600 bg-lime-100' },
     { id: 'turn_fortune', name: '时来运转', desc: '完成任意订单后，下次抽奖获得的物品必定是稀有以上品质。', Icon: ChevronsUp, type: 'luck', color: 'text-rose-600 bg-rose-100' },
-    { id: 'big_order_expert', name: '大订单专家', desc: '完成需求物品数为 4 个的订单时，额外获得 15 金币。', Icon: Package, type: 'order', color: 'text-amber-600 bg-amber-100' },
-    { id: 'hard_order_expert', name: '困难订单专家', desc: '完成需要史诗以上品质物品的订单时，额外获得 20 金币。', Icon: Trophy, type: 'order', color: 'text-fuchsia-600 bg-fuchsia-100' },
+    { id: 'big_order_expert', name: '大订单专家', desc: '完成需求物品数为 4 个的订单时，额外获得 5 金币。', Icon: Package, type: 'order', color: 'text-amber-600 bg-amber-100' },
+    { id: 'hard_order_expert', name: '困难订单专家', desc: '完成需要史诗以上品质物品的订单时，额外获得 10 金币。', Icon: Trophy, type: 'order', color: 'text-fuchsia-600 bg-fuchsia-100' },
 ];
 
 export const INITIAL_AFFIXES_CONFIG = [

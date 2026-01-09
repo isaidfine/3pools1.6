@@ -215,7 +215,95 @@ export default function App() {
                                 </div>
                             </section>
 
-                            {/* 3. 订单数量权重与奖励配置 */}
+                            {/* 2.5 Stage Basic Config (Gold, Entropy, Mainline) */}
+                            <section>
+                                <h4 className="text-lg font-bold mb-4 border-l-4 border-pink-500 pl-3">阶段基础配置 (Basic Config)</h4>
+                                <div className="text-xs text-slate-500 mb-2">配置阶段初始金币、熵增腐烂周期（仅在熵增模式生效）、主线需求参数。</div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-100 text-slate-500">
+                                            <tr>
+                                                <th className="p-2 text-left">阶段名称</th>
+                                                <th className="p-2 text-left w-24">初始金币</th>
+                                                <th className="p-2 text-left w-24">腐烂周期 (Entropy)</th>
+                                                <th className="p-2 text-left w-24">主线需求数量</th>
+                                                <th className="p-2 text-left w-32">主线需求品质</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {config.stages.map((stage, sIdx) => {
+                                                return (
+                                                    <tr key={stage.id} className="border-b hover:bg-slate-50">
+                                                        <td className="p-2 font-bold">{stage.name}</td>
+                                                        {/* Initial Gold */}
+                                                        <td className="p-2">
+                                                            <input
+                                                                type="number"
+                                                                className="w-20 p-1 border rounded text-center font-mono bg-white font-bold text-yellow-700"
+                                                                value={stage.initialGold}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    const newStages = [...config.stages];
+                                                                    newStages[sIdx] = { ...newStages[sIdx], initialGold: val };
+                                                                    setConfig({ ...config, stages: newStages });
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        {/* Entropy Decay */}
+                                                        <td className="p-2">
+                                                            <input
+                                                                type="number"
+                                                                disabled={!stage.mechanics.entropy}
+                                                                className={`w-20 p-1 border rounded text-center font-mono ${stage.mechanics.entropy ? 'bg-white font-bold text-slate-700' : 'bg-slate-50 text-slate-300'}`}
+                                                                value={stage.entropyDecayValue || 40}
+                                                                placeholder="N/A"
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    const newStages = [...config.stages];
+                                                                    newStages[sIdx] = { ...newStages[sIdx], entropyDecayValue: val };
+                                                                    setConfig({ ...config, stages: newStages });
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        {/* Mainline Req Count */}
+                                                        <td className="p-2">
+                                                            <input
+                                                                type="number"
+                                                                min="1" max="5"
+                                                                className="w-20 p-1 border rounded text-center font-mono bg-white font-bold text-slate-700"
+                                                                value={stage.mainlineReqCount || 2}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 1;
+                                                                    const newStages = [...config.stages];
+                                                                    newStages[sIdx] = { ...newStages[sIdx], mainlineReqCount: val };
+                                                                    setConfig({ ...config, stages: newStages });
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        {/* Mainline Req Rarity */}
+                                                        <td className="p-2">
+                                                            <select
+                                                                className="w-28 p-1 border rounded text-xs font-bold"
+                                                                value={stage.mainlineReqRarity || 'epic'}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newStages = [...config.stages];
+                                                                    newStages[sIdx] = { ...newStages[sIdx], mainlineReqRarity: val };
+                                                                    setConfig({ ...config, stages: newStages });
+                                                                }}
+                                                            >
+                                                                {config.rarity.map(r => (
+                                                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
                             <section>
                                 <h4 className="text-lg font-bold mb-4 border-l-4 border-cyan-500 pl-3">订单数量与奖励配置 (Order Count & Rewards)</h4>
                                 <div className="text-xs text-slate-500 mb-2">配置订单物品数量的权重，以及对应的基础金币奖励。</div>

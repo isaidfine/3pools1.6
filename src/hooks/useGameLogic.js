@@ -309,7 +309,14 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
 
             let extraGold = 0;
             if (hasSkill('poverty_relief') && gold < 5 && order.rewardType === 'gold') {
-                extraGold = 10;
+                extraGold += 5; // Updated to +5
+            }
+            if (hasSkill('big_order_expert') && order.requirements.length === 4) {
+                extraGold += 5; // New: Flat +5
+            }
+            if (hasSkill('hard_order_expert')) {
+                const hasHardReq = order.requirements.some(req => req.requiredRarity.id === 'epic' || req.requiredRarity.id === 'legendary');
+                if (hasHardReq) extraGold += 10; // New: Flat +10
             }
 
             // P0: extraGold is added AFTER the multiplier, making it a final flat bonus (unaffected by rarity/flush multipliers).
@@ -381,7 +388,14 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
 
             let extraGold = 0;
             if (hasSkill('poverty_relief') && gold < 5 && order.rewardType === 'gold') {
-                extraGold = 10;
+                extraGold += 5; // Updated to +5
+            }
+            if (hasSkill('big_order_expert') && order.requirements.length === 4) {
+                extraGold += 5; // New: Flat +5
+            }
+            if (hasSkill('hard_order_expert')) {
+                const hasHardReq = order.requirements.some(req => req.requiredRarity.id === 'epic' || req.requiredRarity.id === 'legendary');
+                if (hasHardReq) extraGold += 10; // New: Flat +10
             }
 
             const finalReward = Math.ceil(order.baseReward * multiplier) + extraGold;
@@ -456,7 +470,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             poolName: pool.name,
             rarity: rarity,
             sterile: affixKey === 'hardened',
-            decay: currentStageConfig.mechanics.entropy ? 40 : undefined
+            decay: currentStageConfig.mechanics.entropy ? (currentStageConfig.entropyDecayValue || 40) : undefined
         };
 
     };
@@ -1104,15 +1118,15 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             if (rewardType === 'ticket') gainedTickets += finalReward;
 
             if (hasSkill('big_order_expert') && reqCount === 4) {
-                gainedGold += 15;
-                showToast("【大订单专家】触发：+15金币");
+                // gainedGold += 15; // Refactored: Included in finalReward
+                showToast("【大订单专家】触发：+5金币"); // Update message to +5
             }
 
             if (hasSkill('hard_order_expert')) {
                 const hasHardReq = requirements.some(req => req.requiredRarity.id === 'epic' || req.requiredRarity.id === 'legendary');
                 if (hasHardReq) {
-                    gainedGold += 20;
-                    showToast("【困难订单专家】触发：+20金币");
+                    // gainedGold += 20; // Refactored: Included in finalReward
+                    showToast("【困难订单专家】触发：+10金币"); // Update message to +10
                 }
             }
 
@@ -1176,7 +1190,7 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             selectedIndices.forEach(idx => {
                 const item = inventory[idx];
                 if (item && item.rarity.bonus >= 0.2) {
-                    if (Math.random() < 0.15) extraTickets += 10;
+                    if (Math.random() < 0.25) extraTickets += 5; // Updated: 25% chance, +5 Gold
                 }
             });
             if (extraTickets > 0) showToast(`【炼金术】触发：获得 ${extraTickets} 金币！`, 'info');

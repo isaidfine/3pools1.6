@@ -538,7 +538,6 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                         isNeededForOrder={isNeeded}
                                         isMaxSatisfied={isMaxSatisfied}
                                         hasUpgradePair={hasUpgradePair} // Pass the new prop
-                                        hasUpgradePair={hasUpgradePair} // Pass the new prop
                                         // Fix: Show Red Recycle Overlay for ANY pending item replacement logic
                                         isOverloadTarget={
                                             (pendingItem?.isOverload && item && item.name === hoveredItemName) ||
