@@ -9,6 +9,7 @@ const OrderCardBase = ({
     // State
     isSubmitMode,
     canSatisfy, // { index, finalReward, rewardType, isMainline, reqCount, requirements }
+    potentialSatisfy, // { index, finalReward ... } (Preview)
 
     // Interactions
     onClick,

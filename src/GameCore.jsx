@@ -221,6 +221,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                     isMainline={true}
                                     isSubmitMode={isSubmitMode}
                                     canSatisfy={satisfiableOrders.find(r => r.isMainline)}
+                                    potentialSatisfy={state.potentialSatisfiableOrders.find(r => r.isMainline)} // Pass preview
                                     onClick={handleOrderClick}
                                     currentStageConfig={currentStageConfig}
                                     config={config}
@@ -243,6 +244,7 @@ const GameCore = ({ config, onOpenSettings, onReset, initialSkills = [], initial
                                     isMainline={false}
                                     isSubmitMode={isSubmitMode}
                                     canSatisfy={satisfiableOrders.find(r => r.index === idx)}
+                                    potentialSatisfy={state.potentialSatisfiableOrders.find(r => r.index === idx)} // Pass preview
                                     onClick={handleOrderClick}
                                     onRefresh={handleRefreshSingleOrder}
                                     currentStageConfig={currentStageConfig}

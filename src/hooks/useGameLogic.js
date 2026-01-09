@@ -331,6 +331,77 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
         return results;
     }, [isSubmitMode, selectedIndices, inventory, orders, mainlineOrder, gold, skills]);
 
+    // Preview Potential Rewards (Calculate using BEST items from inventory)
+    const potentialSatisfiableOrders = useMemo(() => {
+        // Run this even if NOT in submit mode, to show "Preview" of gold
+        const handGroups = {};
+        // Group ALL non-null inventory items
+        inventory.forEach(item => {
+            if (item) {
+                if (!handGroups[item.name]) handGroups[item.name] = [];
+                handGroups[item.name].push(item);
+            }
+        });
+        Object.keys(handGroups).forEach(k => {
+            handGroups[k].sort((a, b) => b.rarity.bonus - a.rarity.bonus);
+        });
+
+        const checkOrder = (order, idx, isMain) => {
+            const tempHand = JSON.parse(JSON.stringify(handGroups)); // Deep copy for simulation
+            let isSatisfied = true;
+            let totalSubmitBonus = 0;
+
+            const allReqs = order.requirements;
+            let isSameType = false;
+            // Helper function for OCD check (same as above)
+            if (hasSkill('ocd') && allReqs.length > 1) {
+                const firstPool = allReqs[0].poolId;
+                isSameType = allReqs.every(r => r.poolId === firstPool);
+            }
+
+            for (const req of order.requirements) {
+                const availableItems = tempHand[req.name];
+                if (!availableItems || availableItems.length === 0) {
+                    isSatisfied = false;
+                    break;
+                }
+                const matchIndex = availableItems.findIndex(item => (item.rarity.bonus >= req.requiredRarity.bonus && (!item.decay || item.decay > 0)));
+                if (matchIndex === -1) {
+                    isSatisfied = false;
+                    break;
+                }
+                const matchedItem = availableItems[matchIndex];
+                totalSubmitBonus += matchedItem.rarity.bonus;
+                availableItems.splice(matchIndex, 1);
+            }
+            if (!isSatisfied) return null;
+
+            let multiplier = 1 + totalSubmitBonus;
+            if (isSameType) multiplier *= 2;
+
+            let extraGold = 0;
+            if (hasSkill('poverty_relief') && gold < 5 && order.rewardType === 'gold') {
+                extraGold = 10;
+            }
+
+            const finalReward = Math.ceil(order.baseReward * multiplier) + extraGold;
+            return { index: idx, finalReward, rewardType: order.rewardType, isMainline: isMain, reqCount: order.requirements.length, requirements: order.requirements };
+        };
+
+        const results = [];
+        if (mainlineOrder) {
+            const res = checkOrder(mainlineOrder, -1, true);
+            if (res) results.push(res);
+        }
+        orders.forEach((order, idx) => {
+            if (order) {
+                const res = checkOrder(order, idx, false);
+                if (res) results.push(res);
+            }
+        });
+        return results;
+    }, [inventory, orders, mainlineOrder, gold, skills]);
+
     const totalRecycleValue = useMemo(() => {
         if (!isRecycleMode || selectedIndices.length === 0) return 0;
         return selectedIndices.reduce((sum, idx) => {
@@ -815,10 +886,17 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             }
 
             if (pendingItem.isOverload) {
+                // targetItem is already declared at line 790 (but check for null again to be safe in this context? No, it's const, it hasn't changed. Just check value.)
+
+                // CRASH FIX: Ensure targetItem exists (it might be null if clicking empty slot in some edge case)
+                if (!targetItem) {
+                    return;
+                }
+
                 const targetName = targetItem.name;
-                const newInventory = inventory.filter(i => i.name !== targetName);
+                const newInventory = inventory.filter(i => i && i.name !== targetName);
                 // Calculate refund for cleared items
-                const clearedItems = inventory.filter(i => i.name === targetName);
+                const clearedItems = inventory.filter(i => i && i.name === targetName);
                 const recycleValue = clearedItems.reduce((acc, i) => acc + (i.rarity.recycleValue || 0), 0);
                 if (recycleValue > 0) setGold(prev => prev + recycleValue);
 
@@ -833,12 +911,22 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
                 return;
             }
 
+            // Normal Replace (Backpack Full)
+            if (!targetItem) {
+                // If clicking empty slot when pendingItem is present (but not overload), just place it.
+                const newInventory = [...inventory];
+                newInventory[index] = pendingItem;
+                setInventory(newInventory);
+                setPendingItem(null);
+                return;
+            }
+
             const recycleGain = targetItem.rarity.recycleValue;
             if (recycleGain > 0) setGold(prev => prev + recycleGain);
 
             const newInventory = [...inventory];
             newInventory[index] = pendingItem;
-            newInventory[index] = pendingItem;
+            newInventory[index] = pendingItem; // Duplicated line in original, removing one.
             setInventory(newInventory);
             setPendingItem(null);
             return;
@@ -1182,7 +1270,9 @@ export const useGameLogic = (config, initialSkills = [], onReset, initialProgres
             modalContent, selectionMode,
             skills, skillSelectionCandidates,
             toast,
-            satisfiableOrders: [],
+            toast,
+            satisfiableOrders, // P2 Fix: Return calculated memo, not empty array
+            potentialSatisfiableOrders, // P2 Fix: Return preview memo
             totalRecycleValue,
             selectedItemNames
         },
